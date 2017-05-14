@@ -706,6 +706,14 @@ void CMainFrame::OnDropFiles( HDROP hDropInfo )
 			{
 				pApp->OpenDocumentFile(strFile);
 			}
+			else if(strExt.CompareNoCase(_T(".png"))==0 || strExt.CompareNoCase(_T(".sad"))==0)
+			{
+				CUIDesignerView *pView = GetActiveUIView();
+				if (pView!=NULL)
+				{
+					pView->NewPictureUI(strFile);
+				}
+			}
 		}
 	}
 	DragFinish(hDropInfo);

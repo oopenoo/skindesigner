@@ -612,7 +612,7 @@ void CLayoutManager::Draw(CDC* pDC)
 
 	CContainerUI* pContainer = static_cast<CContainerUI*>(pForm->GetInterface(_T("Container")));
 	ASSERT(pContainer);
-	//DrawAuxBorder(pDC, pContainer->GetItemAt(0));
+	DrawAuxBorder(pDC, pContainer->GetItemAt(0));
 	DrawGrid(pDC, rcPaint);
 }
 

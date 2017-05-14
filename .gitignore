@@ -32,7 +32,6 @@
 *.tlog
 *.bsc
 # Executables
-*.user
 *.exe
 *.dep
 *.out

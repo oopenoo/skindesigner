@@ -150,7 +150,8 @@ void CPropertiesWnd::SetUIValue(CMFCPropertyGridProperty* pProp,int nTag)
 	CString strOldVal;
 	strNewVal = pProp->FormatProperty();
 	strOldVal = m_wndUIProperties.FormatOrigProperty(pProp);
-	if(nTag!=tagName && nTag!=tagText && strName.Find(_T("image"))==-1)
+	if(strName.Find(_T("image"))==-1 &&
+		nTag!=tagName && nTag!=tagText /*&& nTag!=tagClickFunc*/)
 	{
 		strNewVal.MakeLower();
 		strOldVal.MakeLower();
@@ -266,4 +267,9 @@ void CPropertiesWnd::SetUIValue(CMFCPropertyGridProperty* pProp,int nTag)
 	case UPDATE_REDRAW_PARENT:
 		pParent->NeedUpdate();
 	}
+}
+
+CControlUI *CPropertiesWnd::GetCurUI() const
+{
+	return m_wndUIProperties.GetCurUI();
 }

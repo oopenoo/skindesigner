@@ -45,7 +45,8 @@ extern "C"
     extern unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y, \
         int *comp, int req_comp);
 	extern void     stbi_image_free(void *retval_from_stbi_load);
-
+	extern const char *stbi_failure_reason  (void); 
+	extern void stdi_get_user_data(int usr_data[16]);
 };
 
 namespace DuiLib {
@@ -382,8 +383,15 @@ TImageInfo* CRenderEngine::LoadImage(STRINGorID bitmap, LPCTSTR type, DWORD mask
     delete[] pData;
 	if( !pImage ) {
 		//::MessageBox(0, _T("½âÎöÍ¼Æ¬Ê§°Ü"), _T("×¥BUG"), MB_OK);
+		
+		const char *msg = stbi_failure_reason();
+		if (msg != NULL)
+		{
+			::MessageBoxA(0, msg, "Í¼Æ¬×ÊÔ´¼ÓÔØ´íÎó", MB_OK);
+		}
 		return NULL;
 	}
+
 
     BITMAPINFO bmi;
     ::ZeroMemory(&bmi, sizeof(BITMAPINFO));
@@ -436,6 +444,13 @@ TImageInfo* CRenderEngine::LoadImage(STRINGorID bitmap, LPCTSTR type, DWORD mask
     data->nX = x;
     data->nY = y;
     data->alphaChannel = bAlphaChannel;
+	
+	int usr_data[16] = {0};
+	stdi_get_user_data(usr_data);
+	if (usr_data[0] != 0 )
+	{
+		data->userData.Format(_T("%d,%d,%d,%d"), usr_data[0], usr_data[1],usr_data[2], usr_data[3]);
+	}
     return data;
 }
 

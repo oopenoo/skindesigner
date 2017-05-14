@@ -63,7 +63,7 @@ short CPaintManagerUI::m_S = 100;
 short CPaintManagerUI::m_L = 100;
 CStdPtrArray CPaintManagerUI::m_aPreMessages;
 CStdPtrArray CPaintManagerUI::m_aPlugins;
-
+short CPaintManagerUI::m_viewScale = 1;
 
 CPaintManagerUI::CPaintManagerUI() :
 m_hWndPaint(NULL),
@@ -165,6 +165,13 @@ void CPaintManagerUI::Init(HWND hWnd)
     m_hDcPaint = ::GetDC(hWnd);
     // We'll want to filter messages globally too
     m_aPreMessages.Add(this);
+
+	for( int i = 0; i < m_aPreMessages.GetSize(); i++ ) {
+        CPaintManagerUI* pManager = static_cast<CPaintManagerUI*>(m_aPreMessages.GetAt(i));
+		TCHAR buf[MAX_PATH]; _stprintf( buf, _T("mgr: %d - %p\n"), i, pManager);
+
+		OutputDebugString(buf);
+    }
 }
 
 HINSTANCE CPaintManagerUI::GetInstance()
@@ -287,6 +294,15 @@ void CPaintManagerUI::SetHSL(bool bUseHSL, short H, short S, short L)
         if( pManager != NULL && pManager->GetRoot() != NULL )
             pManager->GetRoot()->Invalidate();
     }
+}
+void CPaintManagerUI::GetVScale(short *scale)
+{
+	*scale = m_viewScale;
+}
+
+void CPaintManagerUI::SetVScale(short scale)
+{
+	m_viewScale = scale;
 }
 
 void CPaintManagerUI::ReloadSkin()
@@ -626,7 +642,7 @@ bool CPaintManagerUI::MessageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, LR
                     else {
                         CControlUI* pControl = NULL;
                         while( pControl = m_pRoot->FindControl(__FindControlFromUpdate, NULL, UIFIND_VISIBLE | UIFIND_ME_FIRST) ) {
-                            pControl->SetPos(pControl->GetPos());
+                            pControl->SetPos( pControl->GetPos() );
                         }
                     }
                     // We'll want to notify the window when it is first initialized
@@ -750,14 +766,14 @@ bool CPaintManagerUI::MessageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, LR
         break;
     case WM_SIZE:
         {
-			if (m_pFocus != NULL) {
-				TEventUI event = { 0 };
-				event.Type = UIEVENT_WINDOWSIZE;
-				event.pSender = m_pFocus;
-				event.dwTimestamp = ::GetTickCount();
-				m_pFocus->Event(event);
-			}
-			if (m_pRoot != NULL) m_pRoot->NeedUpdate();
+            if( m_pFocus != NULL ) {
+                TEventUI event = { 0 };
+                event.Type = UIEVENT_WINDOWSIZE;
+                event.pSender = m_pFocus;
+                event.dwTimestamp = ::GetTickCount();
+                m_pFocus->Event(event);
+            }
+            if( m_pRoot != NULL ) m_pRoot->NeedUpdate();
         }
         return true;
     case WM_TIMER:

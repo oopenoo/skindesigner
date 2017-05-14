@@ -1,9 +1,6 @@
 #include "StdAfx.h"
 #include "UIWebBrowser.h"
-#include <atlconv.h>
-#include <atlcomcli.h>
 #include "../Utils/downloadmgr.h"
-#include <mshtml.h>
 
 DuiLib::CWebBrowserUI::CWebBrowserUI()
 : m_pWebBrowser2(NULL)

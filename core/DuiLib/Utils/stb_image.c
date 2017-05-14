@@ -495,13 +495,27 @@ static int      stbi_gif_test(stbi *s);
 static stbi_uc *stbi_gif_load(stbi *s, int *x, int *y, int *comp, int req_comp);
 static int      stbi_gif_info(stbi *s, int *x, int *y, int *comp);
 
+static int      stbi_sad_test(stbi *s);
+static stbi_uc *stbi_sad_load(stbi *s, int *x, int *y, int *comp, int req_comp);
 
 // this is not threadsafe
 static const char *failure_reason;
+static int user_data_onload[16] = {0};
 
 const char *stbi_failure_reason(void)
 {
    return failure_reason;
+}
+void stdi_clear_user_data()
+{
+	memset( user_data_onload, 0, sizeof(int) * 16);
+}
+void stdi_get_user_data(int usr_data[16])
+{
+   if (usr_data!=NULL)
+   {
+	   memcpy(usr_data, user_data_onload, sizeof(int) * 16);
+   }
 }
 
 static int e(const char *str)
@@ -537,6 +551,7 @@ static stbi_uc *hdr_to_ldr(float   *data, int x, int y, int comp);
 
 static unsigned char *stbi_load_main(stbi *s, int *x, int *y, int *comp, int req_comp)
 {
+   if (stbi_sad_test(s)) return stbi_sad_load(s,x,y,comp,req_comp);
    if (stbi_jpeg_test(s)) return stbi_jpeg_load(s,x,y,comp,req_comp);
    if (stbi_png_test(s))  return stbi_png_load(s,x,y,comp,req_comp);
    if (stbi_bmp_test(s))  return stbi_bmp_load(s,x,y,comp,req_comp);
@@ -578,9 +593,10 @@ unsigned char *stbi_load_from_file(FILE *f, int *x, int *y, int *comp, int req_c
 
 unsigned char *stbi_load_from_memory(stbi_uc const *buffer, int len, int *x, int *y, int *comp, int req_comp)
 {
-   stbi s;
-   start_mem(&s,buffer,len);
-   return stbi_load_main(&s,x,y,comp,req_comp);
+	stbi s;
+	start_mem(&s,buffer,len);
+	stdi_clear_user_data();
+	return stbi_load_main(&s,x,y,comp,req_comp);
 }
 
 unsigned char *stbi_load_from_callbacks(stbi_io_callbacks const *clbk, void *user, int *x, int *y, int *comp, int req_comp)
@@ -2415,6 +2431,23 @@ static int check_png_header(stbi *s)
    return 1;
 }
 
+static int check_sad_header(stbi *s)
+{
+	int ver = get16le(s);
+	uint8 num = get8u(s);
+	int w = get16le(s);
+	int h = get16le(s);
+	int r1 = get16le(s);
+	uint8 r2 = get8u(s);
+	uint32 size = get32le(s);
+
+	static uint8 png_sig[8] = { 137,80,78,71,13,10,26,10 };
+	int i;
+	for (i=0; i < 8; ++i)
+		if (get8u(s) != png_sig[i]) return e("bad sad sig","Not a SAD");
+	return 1;
+}
+
 typedef struct
 {
    stbi *s;
@@ -2854,11 +2887,365 @@ static unsigned char *do_png(png *p, int *x, int *y, int *n, int req_comp)
    return result;
 }
 
+
 static unsigned char *stbi_png_load(stbi *s, int *x, int *y, int *comp, int req_comp)
 {
-   png p;
-   p.s = s;
-   return do_png(&p, x,y,comp,req_comp);
+	png p;
+	p.s = s;
+	return do_png(&p, x,y,comp,req_comp);
+}
+
+void copy_image_data(unsigned char* good, unsigned char* srcfirst,
+	int neww, int newh, int pngw,int pngh,
+	int dstx, int dsty, int srcx, int srcy, int srcw, int srch,int req_comp)
+{
+	unsigned int dstLen = (neww*newh) *req_comp;
+	unsigned int srcLen = (pngw*pngh) *req_comp;
+
+	int j;
+	for (j=0;j<srch; ++j)
+	{
+		unsigned char* dst = good + ((j+dsty)*neww + dstx) * req_comp;
+		unsigned char* src = srcfirst + ((j+srcy)*pngw + srcx) * req_comp;
+
+		assert(dst + srcw * req_comp <= good + dstLen);
+		assert(src + srcw * req_comp <= srcfirst + srcLen);
+
+		memcpy( dst, src, srcw * req_comp );
+	}
+}
+// =INT((A24 * B24 + (C24 * D24 / 255) * (255-B24)) / G24 )
+#define GETCVALUE(s, sa, d, da, ca) ((((uint32)s) * (sa) + ((uint32)(d) * (da) / 255) * (255-(sa))) / (ca) )
+
+void add_image_data(unsigned char* good, unsigned char* srcfirst,
+	int neww, int newh, int pngw,int pngh,
+	int dstx, int dsty, int srcx, int srcy, int srcw, int srch,int req_comp,uint8 alpha)
+{
+	unsigned int dstLen = (neww*newh) *req_comp;
+	unsigned int srcLen = (pngw*pngh) *req_comp;
+
+	int i, j;
+	for (j=0;j<srch; ++j)
+	{
+		unsigned char* dst = good + ((j+dsty)*neww + dstx) * req_comp;
+		unsigned char* src = srcfirst + ((j+srcy)*pngw + srcx) * req_comp;
+
+		assert(dst + srcw * req_comp <= good + dstLen);
+		assert(src + srcw * req_comp <= srcfirst + srcLen);
+		if (req_comp==4)
+		{
+			for (i=0;i<srcw;++i)
+			{
+				unsigned char *p_dst = dst + (i * req_comp);
+				unsigned char *p_src = src + (i * req_comp);
+				uint32 r,g,b;
+				uint32 d_alpha = p_dst[3];
+				uint32 s_alpha = (uint32)p_src[3] * alpha / 255;
+				uint32 a = clamp(s_alpha);
+				if (s_alpha>0)
+				{
+					if (p_src[0] != 0 && p_src[1] != 0 && p_src[2] != 0 &&
+						p_dst[0] != 0 && p_dst[1] != 0 && p_dst[2] != 0)
+					{
+						a=s_alpha;
+					}
+
+					{
+						// CA = INT(255 - (255-B24) * (255-D24) / 255)
+						a = 255 - (255-d_alpha) * (255-s_alpha) / 255;
+						r = GETCVALUE(p_src[0], s_alpha, p_dst[0], d_alpha, a );
+						g = GETCVALUE(p_src[1], s_alpha, p_dst[1], d_alpha, a );
+						b = GETCVALUE(p_src[2], s_alpha, p_dst[2], d_alpha, a );
+					}
+					p_dst[0] = (uint8)r;
+					p_dst[1] = (uint8)g;
+					p_dst[2] = (uint8)b;
+					p_dst[3] = (uint8)a;
+				}
+			}
+		}
+		else
+		{
+			memcpy( dst, src, srcw * req_comp );
+		}
+	}
+}
+
+static unsigned char *stbi_sad_load(stbi *s, int *x, int *y, int *comp, int req_comp)
+{
+	typedef struct _quardinf {
+		uint8 pid;
+		int x;
+		int y;
+		int w;
+		int h;
+	} quardinf;
+
+	typedef struct _eleminf {
+		int id;
+		uint8 pageid;
+		int x;
+		int y;
+		int w;
+		int h;
+		int offx;
+		int offy;
+		int px;
+		int py;
+		uint8 alpha;
+	} eleminf;
+
+	typedef struct _frameinfo {
+		uint32 cnt;
+		eleminf elems[5];
+	} frameinfo;
+	
+	typedef struct _pageinfo {
+		uint8 page_id;
+		unsigned char *data;
+		uint32 data_len;
+		uint32 fp_pos, fp_bsize;
+		uint32 width, height, comp;
+	} pageinfo;
+
+	int i, j;
+	int page = 0;
+	int ver = get16le(s);
+	uint8 num = get8u(s);
+	int ca_cx = get16le(s);
+	int ca_cy = get16le(s);
+	int r1 = get16le(s);
+	uint8 r2 = get8u(s);
+	uint32 offset = get32le(s);
+	uint8 fpage = 0;
+	uint32 fp_pos1, fp_bsize;
+
+	uint8 quardfound = 0;
+	int qx,qy,qw,qh;
+	int qcnt = 0;
+	quardinf qinfo[256];
+	unsigned char *good = NULL;
+	eleminf elems[8];
+	int elemscnt = 0;
+	frameinfo *framelist = NULL;
+	uint32 framelistcnt = 0;
+	int minx = 10000, miny = 10000, maxx = -1, maxy = -1;
+	pageinfo pagesinfo[8]; // 最多8页
+	uint32 pageinfocnt = 0;
+
+	memset( qinfo, 0, sizeof(quardinf) * 256);
+	memset( elems, 0, sizeof(eleminf) * 8);
+	memset( pagesinfo, 0, sizeof(pageinfo) * 8);
+
+	skip(s, offset);
+	page = get16le(s);
+	pageinfocnt = page;
+	assert(page <= 8);
+	for (i=0; i <page; ++i)
+	{
+		uint8 k1 = get8u(s);
+		uint32 pos1 = get32le(s);
+		uint32 pos2 = get32le(s);
+		uint32 bsize = pos2 - pos1;
+		pagesinfo[i].fp_pos = pos1;
+		pagesinfo[i].fp_bsize = bsize;
+		if (k1 == 0 && !fpage)
+		{
+			fp_pos1 = pos1;
+			fp_bsize = bsize;
+			fpage = 1;
+		}
+	}
+
+	if (fpage == 1)
+	{
+		qcnt = get16le(s);
+		if (qcnt> 0)
+		{
+			assert(qcnt < 256);
+			for (i = 0; i < qcnt; ++i)
+			{
+				int pid = get16le(s);
+				int x = get16le(s);
+				int y = get16le(s);
+				int w = get16le(s);
+				int h = get16le(s);
+				if (pid==0 && !quardfound)
+				{
+					qx = x;
+					qy = y;
+					qw = w;
+					qh = h;
+					quardfound = 1;
+				}
+				qinfo[i].x = x,qinfo[i].y = y,qinfo[i].w = w,qinfo[i].h = h;
+				qinfo[i].pid = pid;
+			}
+		}
+	}	
+
+	if (quardfound == 1)
+	{
+		int blockidx;
+		int blockcnt = get16le(s);
+		for (blockidx = 0; blockidx < blockcnt; blockidx++)
+		{
+			int blkid = get16le(s); // 目前能看到的是block 都只有1个
+			int unk4 = get16le(s);
+			int p2cnt = get8u(s);
+			assert(blockidx <= 1);
+			assert(p2cnt > 0);
+			
+			framelist = (frameinfo*)malloc(sizeof(frameinfo) * p2cnt);
+			memset( framelist, 0, sizeof(frameinfo) * p2cnt);
+
+			framelistcnt = p2cnt;
+			for (i = 0; i < p2cnt; ++i)
+			{
+				frameinfo* framenode = &framelist[i];
+				int keycnt = get8u(s);
+				framenode->cnt = keycnt;
+				for (j = 0; j < keycnt; ++j)
+				{
+					unsigned int id1 = get16le(s);
+					unsigned int x1 = get16le(s);
+					unsigned int y1 = get16le(s);
+					unsigned int z1 = get32le(s);
+					unsigned int ff1 = get8u(s);
+					assert (id1 < (unsigned int)qcnt);
+					if (j < 4)
+					{
+						elems[j].id = j+1; // frame no.
+						elems[j].pageid = qinfo[id1].pid;
+						elems[j].x = qinfo[id1].x;
+						elems[j].y = qinfo[id1].y;
+						elems[j].w = qinfo[id1].w;
+						elems[j].h = qinfo[id1].h;
+						elems[j].offx = x1;
+						elems[j].offy = y1;
+						// 计算动画的区域范围
+						elems[j].px = elems[j].offx;
+						elems[j].py = elems[j].offy;
+						elems[j].alpha = ff1;
+						if (elems[j].px < minx) minx = elems[j].px;
+						if (elems[j].py < miny) miny = elems[j].py;
+						if (elems[j].px + elems[j].w > maxx) maxx = elems[j].px + elems[j].w;
+						if (elems[j].py + elems[j].h > maxy) maxy = elems[j].py + elems[j].h;
+					}
+				}
+				memcpy( framenode->elems, elems, sizeof(eleminf) * 5);
+			}
+		}
+	}
+	
+	if (quardfound == 1)
+	{
+		if (minx > maxx || miny > maxy)
+			quardfound = 0;
+		else
+		{
+			int founded = 0;
+			for (i = 0; i < (int)framelistcnt; ++i)
+			{
+				frameinfo* framenode = &framelist[i];
+				eleminf *e = framenode->elems;
+				if (i == framelistcnt / 2)
+					founded = 1;
+				//for (j = 0; j < (int)framenode->cnt; ++j)
+				//{
+				//	if (e[j].pageid == 0) // 目前只支持一页
+				//	{
+				//		founded = 1;
+				//	}
+				//}
+				if (founded == 1)
+				{
+					memcpy( elems, framenode->elems, sizeof(eleminf) * 5);
+					elemscnt = framenode->cnt;
+					break;
+				}
+			}
+			// 裁剪
+			for (i=0; i < elemscnt; ++i)
+			{
+				elems[i].px -= minx;
+				elems[i].py -= miny;
+			}
+			user_data_onload[0] = minx;
+			user_data_onload[1] = miny;
+			user_data_onload[2] = ca_cx;
+			user_data_onload[3] = ca_cy;
+			qw = maxx - minx;
+			qh = maxy - miny;
+		}
+	}
+
+	if (quardfound == 1)
+	{
+		uint32 pinfcnt = 0;
+		for (i = 0; i < (int)pageinfocnt; ++i)
+		{
+			pageinfo *pinf = &pagesinfo[i];
+			png p;
+			stbi ps;
+			start_mem(&ps, s->img_buffer_original+14+pinf->fp_pos, pinf->fp_bsize);
+			p.s = &ps;
+			pinf->data = do_png(&p, x, y, comp, req_comp);
+			pinf->width = *x;
+			pinf->height = *y;
+			pinf->comp = *comp;
+			if (pinf->data != NULL)
+				pinfcnt++;
+		}
+
+		if (pinfcnt > 0)
+		{
+			int pngw, pngh; 
+			unsigned char *data = NULL;
+			assert(req_comp >= 1 && req_comp <= 4);
+			good = (unsigned char *) malloc(req_comp * qw * qh);
+			memset( good, 0, req_comp * qw * qh);
+			for (i=0; i < elemscnt && elems[i].id >0; ++i)
+			{
+				eleminf *ei = &elems[i];
+				pageinfo *pi = &pagesinfo[ei->pageid];
+				data = pi->data;
+				pngw = (int)pi->width;
+				pngh = (int)pi->height;
+
+				assert( ei->pageid < 8);
+				assert(elems[i].px + elems[i].w <= qw);
+				assert(elems[i].py + elems[i].h <= qh);
+				assert(elems[i].x + elems[i].w <= pngw);
+				assert(elems[i].y + elems[i].h <= pngh);
+
+				if (i==0)
+				{
+					copy_image_data(good, data,
+						qw, qh, pngw, pngh,
+						elems[i].px, elems[i].py,
+						elems[i].x, elems[i].y, elems[i].w, elems[i].h, req_comp);
+				}
+				else
+				{
+					add_image_data(good, data,
+						qw, qh, pngw, pngh,
+						elems[i].px, elems[i].py,
+						elems[i].x, elems[i].y, elems[i].w, elems[i].h, req_comp, elems[i].alpha);
+				}
+			}
+		}
+		*x = qw;
+		*y = qh;
+	}
+
+	for (i = 0; i < (int)pageinfocnt; ++i)
+	{
+		pageinfo *pinf = &pagesinfo[i];
+		if (pinf->data!=NULL) free(pinf->data);
+	}
+	if (framelist!=NULL) free(framelist);
+	return good;
 }
 
 static int stbi_png_test(stbi *s)
@@ -2867,6 +3254,14 @@ static int stbi_png_test(stbi *s)
    r = check_png_header(s);
    stbi_rewind(s);
    return r;
+}
+
+static int stbi_sad_test(stbi *s)
+{
+	int r;
+	r = check_sad_header(s);
+	stbi_rewind(s);
+	return r;
 }
 
 static int stbi_png_info_raw(png *p, int *x, int *y, int *comp)

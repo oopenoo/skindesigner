@@ -178,57 +178,39 @@ namespace DuiLib
 
 	void CLabelUI::SetAttribute(LPCTSTR pstrName, LPCTSTR pstrValue)
 	{
-		//LeftVCenter,RightVCenter,Center,TopCenter,BottomCenter,LeftTop,LeftBottom,RightTop,RightBottom
 		if( _tcscmp(pstrName, _T("align")) == 0 ) {
-			if( _tcscmp(pstrValue, _T("leftvcenter")) == 0 ) {
-				m_uTextStyle = DT_LEFT | DT_VCENTER | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("rightvcenter")) == 0 ) {
-				m_uTextStyle = DT_RIGHT | DT_VCENTER | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("center")) == 0 ) {
-				m_uTextStyle = DT_CENTER | DT_VCENTER | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("topcenter")) == 0 ) {
-				m_uTextStyle = DT_CENTER | DT_TOP | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("bottomcenter")) == 0 ) {
-				m_uTextStyle = DT_CENTER | DT_BOTTOM | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("lefttop")) == 0 ) {
-				m_uTextStyle = DT_LEFT | DT_TOP | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("leftbottom")) == 0 ) {
-				m_uTextStyle = DT_LEFT | DT_BOTTOM | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("righttop")) == 0 ) {
-				m_uTextStyle = DT_RIGHT | DT_TOP | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("rightbottom")) == 0 ) {
-				m_uTextStyle = DT_RIGHT | DT_BOTTOM | DT_SINGLELINE;
-			}else if ( _tcscmp(pstrValue, _T("wrap")) == 0 ) {
-				m_uTextStyle = DT_WORDBREAK;
-			}else if ( _tcscmp(pstrValue, _T("none")) == 0 ) {
-				m_uTextStyle = 0x10000000;
-			}else{
-				m_uTextStyle = 0;
-			}
+
+			CDuiStringUtil::ParseTextAlign(pstrValue, m_uTextStyle, m_hAlign, m_vAlign);
 
 			//if( _tcsstr(pstrValue, _T("left")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_CENTER | DT_RIGHT/* | DT_VCENTER | DT_SINGLELINE*/);
-			//	m_uTextStyle |= DT_LEFT | DT_VCENTER | DT_SINGLELINE;
+			//	m_uTextStyle &= ~(DT_CENTER | DT_RIGHT);
+			//	m_uTextStyle |= DT_LEFT;
+			//	m_hAlign	= DT_LEFT;
 			//}
 			//if( _tcsstr(pstrValue, _T("center")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_LEFT | DT_RIGHT );
+			//	m_uTextStyle &= ~(DT_LEFT | DT_RIGHT);
 			//	m_uTextStyle |= DT_CENTER;
+			//	m_hAlign	= DT_CENTER;
 			//}
 			//if( _tcsstr(pstrValue, _T("right")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_LEFT | DT_CENTER/* | DT_VCENTER | DT_SINGLELINE*/);
-			//	m_uTextStyle |= DT_RIGHT | DT_VCENTER | DT_SINGLELINE;
+			//	m_uTextStyle &= ~(DT_LEFT | DT_CENTER);
+			//	m_uTextStyle |= DT_RIGHT;
+			//	m_hAlign	= DT_RIGHT;
 			//}
 			//if( _tcsstr(pstrValue, _T("top")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_BOTTOM | DT_VCENTER | DT_VCENTER);
-			//	m_uTextStyle |= (DT_TOP | DT_SINGLELINE);
+			//	m_uTextStyle &= ~(DT_BOTTOM | DT_VCENTER);
+			//	m_uTextStyle |= DT_TOP;
+			//	m_vAlign	= DT_TOP;
 			//}
 			//if( _tcsstr(pstrValue, _T("vcenter")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_TOP | DT_BOTTOM );			
-			//	m_uTextStyle |= (DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+			//	m_uTextStyle &= ~(DT_TOP | DT_BOTTOM);			
+			//	m_uTextStyle |= DT_VCENTER;
+			//	m_vAlign	= DT_CENTER;
 			//}
 			//if( _tcsstr(pstrValue, _T("bottom")) != NULL ) {
-			//	m_uTextStyle &= ~(DT_TOP | DT_VCENTER | DT_VCENTER);
-			//	m_uTextStyle |= (DT_BOTTOM | DT_SINGLELINE);
+			//	m_uTextStyle &= ~(DT_TOP | DT_VCENTER);
+			//	m_uTextStyle |= DT_BOTTOM;
+			//	m_vAlign	= DT_RIGHT;
 			//}
 		}
 		else if( _tcscmp(pstrName, _T("endellipsis")) == 0 ) {

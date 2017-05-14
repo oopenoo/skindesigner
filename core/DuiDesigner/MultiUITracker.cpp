@@ -148,9 +148,19 @@ CUITracker::~CUITracker()
 
 /////////////////////////////////////////////////////////////////////////////
 // CUITracker operations
+inline CRect MakeRectByScale(CRect rect,int scale)
+{
+	rect.OffsetRect(CPoint(-20,-20));
+	CRect ret = CRect(rect.left*scale, rect.top*scale, rect.right*scale, rect.bottom*scale);
+	ret.OffsetRect(CPoint(20,20));
+	return ret;
+}
 
 void CUITracker::Draw(CDC* pDC) const
 {
+	short viewscale = 1;
+	CPaintManagerUI::GetVScale(&viewscale);
+
 	// set initial DC state
 	VERIFY(pDC->SaveDC() != 0);
 
@@ -175,7 +185,13 @@ void CUITracker::Draw(CDC* pDC) const
 		nOldROP = pDC->SetROP2(R2_COPYPEN);
 		int offset=GetHandleSize(rect)/2;
 		rect.InflateRect(offset, offset);   // borders are one pixel outside
+
+#if 0
 		pDC->Rectangle(rect.left, rect.top, rect.right, rect.bottom);
+#else
+		CRect rectv = MakeRectByScale(rect, viewscale);
+		pDC->Rectangle(rectv.left, rectv.top, rectv.right, rectv.bottom);
+#endif
 		pDC->SetROP2(nOldROP);
 	}
 
@@ -194,7 +210,12 @@ void CUITracker::Draw(CDC* pDC) const
 			pOldBrush = (CBrush*)pTemp;
 		pDC->SetBkMode(TRANSPARENT);
 		nOldROP = pDC->SetROP2(R2_MASKNOTPEN);
+#if 0
 		pDC->Rectangle(rect.left+1, rect.top+1, rect.right, rect.bottom);
+#else
+		CRect rectv = MakeRectByScale(rect, viewscale);
+		pDC->Rectangle(rectv.left+1, rectv.top+1, rectv.right, rectv.bottom);
+#endif
 		pDC->SetROP2(nOldROP);
 	}
 
@@ -207,6 +228,7 @@ void CUITracker::Draw(CDC* pDC) const
 		pDC->SetBkMode(OPAQUE);
 		CRect rectTrue;
 		GetTrueRect(&rectTrue);
+#if 0
 		pDC->PatBlt(rectTrue.left, rectTrue.top, rectTrue.Width(),
 			rect.top-rectTrue.top, 0x000F0001 /* Pn */);
 		pDC->PatBlt(rectTrue.left, rect.bottom,
@@ -215,6 +237,19 @@ void CUITracker::Draw(CDC* pDC) const
 			rect.Height(), 0x000F0001 /* Pn */);
 		pDC->PatBlt(rect.right, rect.top, rectTrue.right-rect.right,
 			rect.Height(), 0x000F0001 /* Pn */);
+#else
+		CRect rcvs = MakeRectByScale(rect, viewscale);
+		CRect rctr = MakeRectByScale(rectTrue, viewscale);
+
+		pDC->PatBlt(rctr.left, rctr.top, rctr.Width(),
+			rcvs.top-rctr.top, 0x000F0001 /* Pn */);
+		pDC->PatBlt(rctr.left, rcvs.bottom,
+			rctr.Width(), rctr.bottom-rcvs.bottom, 0x000F0001 /* Pn */);
+		pDC->PatBlt(rctr.left, rcvs.top, rcvs.left-rctr.left,
+			rcvs.Height(), 0x000F0001 /* Pn */);
+		pDC->PatBlt(rcvs.right, rcvs.top, rctr.right-rcvs.right,
+			rcvs.Height(), 0x000F0001 /* Pn */);
+#endif
 	}
 
 	// draw resize handles
@@ -228,7 +263,12 @@ void CUITracker::Draw(CDC* pDC) const
 			if (mask & (1<<i))
 			{
 				GetHandleRect((TrackerHit)i, &rect);
+#if 0
 				pDC->Rectangle(&rect);
+#else
+				CRect rectv = MakeRectByScale(rect, viewscale);
+				pDC->Rectangle(&rectv);
+#endif
 			}
 		}
 	}
@@ -240,7 +280,13 @@ void CUITracker::Draw(CDC* pDC) const
 		CDC hCloneDC;
 		hCloneDC.CreateCompatibleDC(pDC);
 		HBITMAP hOldBitmap=(HBITMAP)hCloneDC.SelectObject(m_hMoveHandleBitmap);
+#if 0
 		pDC->BitBlt(rect.left, rect.top, rect.Width(), rect.Height(), &hCloneDC, 0, 0, SRCCOPY);
+#else
+		CRect rectv = MakeRectByScale(rect, viewscale);
+		pDC->StretchBlt(rectv.left, rectv.top, rectv.Width(), rectv.Height(), &hCloneDC,
+			0, 0, rect.Width(), rect.Height(), SRCCOPY);
+#endif
 		hCloneDC.SelectObject(hOldBitmap);
 		::DeleteDC(hCloneDC);
 	}
@@ -1292,9 +1338,19 @@ void CMultiUITracker::ExcludeChildren(CArray<CControlUI*,CControlUI*>& arrSelect
 	for(int i=0; i<size; i++)
 	{
 		ExtendedAttributes* pExtended = (ExtendedAttributes*)arrSelected[i]->GetTag();
-		pDepth[i] = pExtended->nDepth;
+		if (pExtended != NULL)
+		{
+			pDepth[i] = pExtended->nDepth;
+		}
+		else
+		{
+			pDepth[i] = 0;
+		}
 	}
 
+	CArray<CControlUI*,CControlUI*> arrBuffer;
+	vector<int> needRemove;
+	
 	for(int i=0; i<arrSelected.GetSize()-1; i++)
 	{
 		CControlUI* pControl1 = arrSelected[i];
@@ -1302,25 +1358,39 @@ void CMultiUITracker::ExcludeChildren(CArray<CControlUI*,CControlUI*>& arrSelect
 		{
 			if(pDepth[i] != pDepth[j])
 			{
+				CControlUI* test = pControl1;
 				CControlUI* pControl2 = arrSelected[j];
 				if(pDepth[i] < pDepth[j])
 				{
 					int depth = pDepth[j] - pDepth[i];
 					while(depth-- && pControl2)
 						pControl2 = pControl2->GetParent();
-					if(pControl1 == pControl2)
-						arrSelected.RemoveAt(j--);
+					if(test == pControl2)
+					{
+						needRemove.push_back(j);
+						arrSelected.RemoveAt(j);
+						j--;
+					}
 				}
 				else
 				{
 					int depth = pDepth[i] - pDepth[j];
-					while(depth-- && pControl1)
-						pControl1 = pControl1->GetParent();
-					if(pControl1 == pControl2)
-						arrSelected.RemoveAt(i--);
+					while(depth-- && test)
+						test = test->GetParent();
+					if(test == pControl2)
+					{
+						needRemove.push_back(i);
+						arrSelected.RemoveAt(i);
+						i--;
+					}
 				}
 			}
 		}
+	}
+	vector<int>::iterator itr = needRemove.begin();
+	for (; itr!=needRemove.end(); ++itr)
+	{
+		TRACE("   > %d", *itr);
 	}
 
 	delete[] pDepth;

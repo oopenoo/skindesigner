@@ -46,8 +46,32 @@ void CClassViewTree::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		g_pMainFrame->GetActiveUIView()->OnDeleteUI();
 		break;
 	}
-
 	CTreeCtrl::OnKeyDown(nChar, nRepCnt, nFlags);
+}
+
+LRESULT CClassViewTree::DefWindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+	if (message == WM_KEYDOWN)
+	{
+		switch(LOWORD(wParam))
+		{
+		case VK_UP:
+		case VK_DOWN:
+		case VK_LEFT:
+		case VK_RIGHT:
+			{
+				CWnd *pView = g_pMainFrame->GetActiveUIView();
+				if (pView!=NULL)
+				{
+					pView->SetFocus();
+					pView->PostMessage(message, wParam, lParam );
+					//pView->OnKeyDown(nChar, nRepCnt, nFlags);
+					return 0;
+				}
+			}
+		}
+	}
+	return CViewTree::DefWindowProc(message, wParam, lParam);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -285,34 +309,49 @@ BOOL CClassView::RemoveUITreeItem(HTREEITEM hItem)
 	return m_wndClassView.DeleteItem(hItem);
 }
 
-//修改DuiDesigner, 增强选择元素后的用户体验 http://blog.csdn.net/lostspeed/article/details/30980485
+void CClassView::SwitchUITreeItem(CControlUI* pSwitch,CControlUI* pControl)
+{
+	if(pControl==NULL || pSwitch==NULL || pSwitch==pControl)
+		return;
+
+	ExtendedAttributes *pHot = (ExtendedAttributes*)pControl->GetTag();
+	ExtendedAttributes *pTmp = (ExtendedAttributes*)pSwitch->GetTag();
+	if (pHot!=NULL && pTmp!=NULL)
+	{
+		HTREEITEM hItemHot = pHot->hItem;
+		HTREEITEM hItemTmp = pTmp->hItem;
+		CString nameHot = m_wndClassView.GetItemText(hItemHot);
+		CString nameTmp = m_wndClassView.GetItemText(hItemTmp);
+
+		int nImageHot = pHot->nClass - classWindow;
+		int nImageTmp = pTmp->nClass - classWindow;
+
+		m_wndClassView.SetItemText(hItemHot, nameTmp);
+		m_wndClassView.SetItemText(hItemTmp, nameHot);
+		m_wndClassView.SetItemImage(hItemHot, nImageTmp, nImageTmp);
+		m_wndClassView.SetItemImage(hItemTmp, nImageHot, nImageHot);
+		m_wndClassView.SetItemData(hItemHot,(DWORD_PTR)pSwitch);
+		m_wndClassView.SetItemData(hItemTmp,(DWORD_PTR)pControl);
+
+		pHot->hItem = hItemTmp;
+		pTmp->hItem = hItemHot;
+		m_wndClassView.SelectItem(hItemTmp);
+	}
+	//HTREEITEM hSelect=(HTREEITEM)(((ExtendedAttributes*)pControl->GetTag())->hItem);
+	//m_wndClassView.SelectItem(hSelect);
+}
+
 void CClassView::SelectUITreeItem(CControlUI* pControl)
 {
-	HTREEITEM hItemCur = NULL;  
-    HTREEITEM hItemPrev = NULL; ///< 上一个被选中的Item  
-  
-    if(pControl==NULL)  
-    {  
-        return;  
-    }  
-  
-    if (pControl->GetTag() > 0)  
-    {  
-        hItemPrev = m_wndClassView.GetSelectedItem();  
-        if (NULL != hItemPrev)  
-        {  
-            /// 清掉上一次选择的Item为不选择状态状态  
-            m_wndClassView.SetItemState(hItemPrev, 0, TVIS_BOLD | TVIS_SELECTED);  
-        }  
-  
-        hItemCur = (HTREEITEM)(((ExtendedAttributes*)pControl->GetTag())->hItem);  
-        if (NULL != hItemCur)  
-        {  
-            /// 设置这次选中的Item为突出显示  
-            m_wndClassView.SelectItem(hItemCur);  
-            m_wndClassView.SetItemState(hItemCur,TVIS_BOLD | TVIS_SELECTED,TVIS_BOLD | TVIS_SELECTED);  
-        }  
-    }  
+	if(pControl==NULL)
+		return;
+
+	if (pControl->GetTag())
+	{
+		m_wndClassView.SelectItem((HTREEITEM)(((ExtendedAttributes*)pControl->GetTag())->hItem));
+	}
+	//HTREEITEM hSelect=(HTREEITEM)(((ExtendedAttributes*)pControl->GetTag())->hItem);
+	//m_wndClassView.SelectItem(hSelect);
 }
 
 void CClassView::RenameUITreeItem(CControlUI* pControl, LPCTSTR lpszName)

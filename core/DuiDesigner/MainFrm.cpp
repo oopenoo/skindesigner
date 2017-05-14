@@ -569,6 +569,13 @@ void CMainFrame::OnFileSaveAll()
 	g_pFileView->SaveProject();
 }
 
+void CMainFrame::OnFileToluacode()
+{
+	AfxGetApp()->SaveAllModified();
+	g_pFileView->SaveProject();
+	g_pFileView->ConverToLuaCode();
+}
+
 void CMainFrame::OnUpdateProjectExist(CCmdUI *pCmdUI)
 {
 	// TODO: 在此添加命令更新用户界面处理程序代码

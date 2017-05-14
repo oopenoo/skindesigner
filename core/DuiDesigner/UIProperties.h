@@ -107,7 +107,7 @@ enum PropertyTag
 	tagName,
 	tagText,
 	tagPos,
-	tagAnchor,
+	tagRelativePos,
 	tagSize,
 	tagMinSize,
 	tagMaxSize,
@@ -146,6 +146,7 @@ enum PropertyTag
 	tagPushedImage,
 	tagFocusedImage,
 	tagDisabledImage,
+//	tagClickFunc,
 
 	//Edit
 	tagEdit,

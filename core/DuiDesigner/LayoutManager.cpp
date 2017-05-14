@@ -937,7 +937,7 @@ void CLayoutManager::TestForm(LPCTSTR pstrFile)
 
 	// CControlUI* pRoot=CloneControls(GetForm()->GetItemAt(0));
 	// 使用新建的XML树来预览，不会挂掉
-	pManager->Init(h_wnd);
+//	pManager->Init(h_wnd);
 	CDialogBuilder builder;
 	CContainerUI* pRoot=static_cast<CContainerUI*>(builder.Create(pstrFile,(UINT)0,NULL,pManager));
 	if(pRoot==NULL)
@@ -1616,6 +1616,13 @@ void CLayoutManager::SaveControlProperty(CControlUI* pControl, TiXmlElement* pNo
 		pNode->SetAttribute("bkimage", StringConvertor::WideToUtf8(ConvertImageFileName(pControl->GetBkImage())));
 	}
 
+	CString userData = pControl->GetUserData();
+	if (!userData.IsEmpty())
+	{
+		pNode->SetAttribute("userdata", StringConvertor::WideToUtf8(userData));
+	}
+
+
 	if(pControl->GetBkColor() != 0)
 	{
 		DWORD dwColor = pControl->GetBkColor();					
@@ -1669,9 +1676,11 @@ void CLayoutManager::SaveControlProperty(CControlUI* pControl, TiXmlElement* pNo
 		pNode->SetAttribute("minheight", StringConvertor::WideToUtf8(szBuf));
 	}
 
-	int nAnchorMode = pControl->GetAnchorMode();
-	if ( nAnchorMode > 0 ) {
-		pNode->SetAttribute("anchor", nAnchorMode);
+	TRelativePosUI relativePos = pControl->GetRelativePos();
+	if(relativePos.bRelative)
+	{
+		_stprintf_s(szBuf, _T("%d,%d,%d,%d"), relativePos.nMoveXPercent, relativePos.nMoveYPercent, relativePos.nZoomXPercent, relativePos.nZoomYPercent);
+		pNode->SetAttribute("relativepos", StringConvertor::WideToUtf8(szBuf));
 	}
 
 	if (pControl->IsMouseEnabled()==false)
@@ -1731,36 +1740,10 @@ void CLayoutManager::SaveLabelProperty(CControlUI* pControl, TiXmlElement* pNode
 	if(pLabelUI->IsShowHtml())
 		pNode->SetAttribute("showhtml", "true");
 
+	//std::wstring tstrAlgin;
+	//UINT uTextStyle = pListHeaderItemUI->GetTextStyle();
 
-	std::wstring tstrAlgin;
-	UINT uTextStyle = pLabelUI->GetTextStyle();
-	uTextStyle &= ~(DT_SINGLELINE);
-
-	if( uTextStyle == (DT_LEFT | DT_VCENTER) ) {
-		tstrAlgin = _T("leftvcenter");
-	}else if ( uTextStyle == (DT_RIGHT | DT_VCENTER) ) {
-		tstrAlgin = _T("rightvcenter");
-	}else if ( uTextStyle == (DT_CENTER | DT_VCENTER) ) {
-		tstrAlgin = _T("center");
-	}else if ( uTextStyle == (DT_CENTER | DT_TOP) ) {
-		tstrAlgin = _T("topcenter");
-	}else if ( uTextStyle == (DT_CENTER | DT_BOTTOM) ) {
-		tstrAlgin = _T("bottomcenter");
-	}else if ( uTextStyle == (DT_LEFT | DT_TOP) ) {
-		tstrAlgin = _T("lefttop");
-	}else if ( uTextStyle == (DT_LEFT | DT_BOTTOM) ) {
-		tstrAlgin = _T("leftbottom");
-	}else if ( uTextStyle == (DT_RIGHT | DT_TOP) ) {
-		tstrAlgin = _T("righttop");
-	}else if ( uTextStyle == (DT_RIGHT | DT_BOTTOM) ) {
-		tstrAlgin = _T("rightbottom");
-	}else if ( uTextStyle == DT_WORDBREAK ) {
-		tstrAlgin = _T("wrap");
-	}else{
-		tstrAlgin = _T("");
-	}
-
-	//if( uTextStyle==0 )
+	//if(uTextStyle & DT_LEFT)
 	//	tstrAlgin = _T("left");
 
 	//if(uTextStyle & DT_CENTER)
@@ -1778,8 +1761,12 @@ void CLayoutManager::SaveLabelProperty(CControlUI* pControl, TiXmlElement* pNode
 	//if(uTextStyle & DT_WORDBREAK)
 	//	tstrAlgin += _T("wrap");
 
-	if(!tstrAlgin.empty())
-		pNode->SetAttribute("align", StringConvertor::WideToUtf8(tstrAlgin.c_str()));
+	//if(!tstrAlgin.empty())
+	//	pNode->SetAttribute("align", StringConvertor::WideToUtf8(tstrAlgin.c_str()));
+
+	std::wstring str = GetTextAlignStr(pLabelUI->GetTextStyle());
+	if (!str.empty())
+		pNode->SetAttribute("align", StringConvertor::WideToUtf8(str.c_str()));
 
 	if (pLabelUI->GetTextStyle()&DT_END_ELLIPSIS)
 	{
@@ -1833,6 +1820,9 @@ void CLayoutManager::SaveButtonProperty(CControlUI* pControl, TiXmlElement* pNod
 	{
 		pNode->SetAttribute("keyboard","false");
 	}
+
+	//if(pButtonUI->GetClickFunc() && _tcslen(pButtonUI->GetClickFunc()) > 0)
+	//	pNode->SetAttribute("clickfunc", StringConvertor::WideToUtf8(pButtonUI->GetClickFunc()));
 }
 
 void CLayoutManager::SaveOptionProperty(CControlUI* pControl, TiXmlElement* pNode)
@@ -2151,36 +2141,32 @@ void CLayoutManager::SaveListHeaderItemProperty(CControlUI* pControl, TiXmlEleme
 	if(!pListHeaderItemUI->IsDragable())
 		pNode->SetAttribute("dragable", "false");
 
-	std::wstring tstrAlgin;
-	UINT uTextStyle = pListHeaderItemUI->GetTextStyle();
-	uTextStyle &= ~(DT_SINGLELINE);
+	//std::wstring tstrAlgin;
+	//UINT uTextStyle = pListHeaderItemUI->GetTextStyle();
 
-	if( uTextStyle == (DT_LEFT | DT_VCENTER) ) {
-		tstrAlgin = _T("leftvcenter");
-	}else if ( uTextStyle == (DT_RIGHT | DT_VCENTER) ) {
-		tstrAlgin = _T("rightvcenter");
-	}else if ( uTextStyle == (DT_CENTER | DT_VCENTER) ) {
-		tstrAlgin = _T("center");
-	}else if ( uTextStyle == (DT_CENTER | DT_TOP) ) {
-		tstrAlgin = _T("topcenter");
-	}else if ( uTextStyle == (DT_CENTER | DT_BOTTOM) ) {
-		tstrAlgin = _T("bottomcenter");
-	}else if ( uTextStyle == (DT_LEFT | DT_TOP) ) {
-		tstrAlgin = _T("lefttop");
-	}else if ( uTextStyle == (DT_LEFT | DT_BOTTOM) ) {
-		tstrAlgin = _T("leftbottom");
-	}else if ( uTextStyle == (DT_RIGHT | DT_TOP) ) {
-		tstrAlgin = _T("righttop");
-	}else if ( uTextStyle == (DT_RIGHT | DT_BOTTOM) ) {
-		tstrAlgin = _T("rightbottom");
-	}else if ( uTextStyle == DT_WORDBREAK ) {
-		tstrAlgin = _T("wrap");
-	}else{
-		tstrAlgin = _T("");
-	}
+	//if(uTextStyle & DT_LEFT)
+	//	tstrAlgin = _T("left");
 
-	if(!tstrAlgin.empty())
-		pNode->SetAttribute("align", StringConvertor::WideToUtf8(tstrAlgin.c_str()));
+	//if(uTextStyle & DT_CENTER)
+	//	tstrAlgin = _T("center");
+
+	//if(uTextStyle & DT_RIGHT)
+	//	tstrAlgin = _T("right");
+
+	//if(uTextStyle & DT_TOP)
+	//	tstrAlgin += _T("top");
+
+	//if(uTextStyle & DT_BOTTOM)
+	//	tstrAlgin += _T("bottom");
+
+	//if(uTextStyle & DT_WORDBREAK)
+	//	tstrAlgin += _T("wrap");
+
+	//if(!tstrAlgin.empty())
+	//	pNode->SetAttribute("align", StringConvertor::WideToUtf8(tstrAlgin.c_str()));
+	std:wstring str = GetTextAlignStr(pListHeaderItemUI->GetTextStyle());
+	if (!str.empty())
+		pNode->SetAttribute("align", StringConvertor::WideToUtf8(str.c_str()));
 
 	if(pListHeaderItemUI->GetNormalImage() && _tcslen(pListHeaderItemUI->GetNormalImage()) > 0)
 		pNode->SetAttribute("normalimage", StringConvertor::WideToUtf8(ConvertImageFileName(pListHeaderItemUI->GetNormalImage())));

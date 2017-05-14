@@ -97,4 +97,5 @@ public:
 	bool m_bViewToolsBox;
 	bool m_bViewProperty;
 */
+	afx_msg void OnFileToluacode();
 };

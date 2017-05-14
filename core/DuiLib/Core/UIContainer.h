@@ -45,6 +45,7 @@ public:
     bool Remove(CControlUI* pControl);
     bool RemoveAt(int iIndex);
     void RemoveAll();
+	CControlUI *ResetOrder(CControlUI* pControl, bool up);
 
     void DoEvent(TEventUI& event);
     void SetVisible(bool bVisible = true);

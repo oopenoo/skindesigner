@@ -63,6 +63,8 @@ public:
 	void OnTitleChanged(LPCTSTR pstrOldTitle, LPCTSTR pstrNewTitle);
 	void SetModifiedFlag(BOOL bModified = TRUE);
 
+	void NewPictureUI(const CString& picfile);
+	CControlUI *GetContainerUI();
 protected:
 	void UpDateDPtoLPOffset();
 	CTrackerElement* CreateTracker(CControlUI* pControl);
@@ -157,6 +159,13 @@ public:
 	afx_msg void OnDestroy();
 	afx_msg void OnTemplateSaveAs();
 	afx_msg void OnStyleSaveAs();
+	afx_msg void OnFormeditScale1x();
+	afx_msg void OnFormeditScale4x();
+	afx_msg void OnUpdateFormeditScale4x(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateFormeditScale1x(CCmdUI *pCmdUI);
+
+	void ResetControlOrder(bool up);
+	void UpdateUIPosInProp();
 };
 
 #ifndef _DEBUG  // UIDesignerView.cpp 中的调试版本

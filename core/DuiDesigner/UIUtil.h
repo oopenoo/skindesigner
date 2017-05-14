@@ -81,4 +81,6 @@ static __declspec(deprecated) __inline LPTSTR StringAlloc(size_t  len)          
 
 } // namespace StringConvertor
 
+std::wstring GetTextAlignStr(DWORD alignValue);
+
 #endif //__UIUTIL_H__

@@ -101,6 +101,7 @@ typedef struct tagTImageInfo
     bool alphaChannel;
     CDuiString sResType;
     DWORD dwMask;
+	CDuiString userData;
 } TImageInfo;
 
 // Structure for notifications from the system
@@ -116,6 +117,17 @@ typedef struct tagTEventUI
     WPARAM wParam;
     LPARAM lParam;
 } TEventUI;
+
+// Structure for relative position to the parent
+typedef struct tagTRelativePosUI
+{
+	bool bRelative;
+	SIZE szParent;
+	int nMoveXPercent;
+	int nMoveYPercent;
+	int nZoomXPercent;
+	int nZoomYPercent;
+}TRelativePosUI;
 
 // Listener interface
 class UILIB_API INotifyUI
@@ -199,6 +211,9 @@ public:
     static void ReloadSkin();
     static bool LoadPlugin(LPCTSTR pstrModuleName);
     static CStdPtrArray* GetPlugins();
+
+	static void GetVScale(short *scale);
+	static void SetVScale(short scale);
 
     bool UseParentResource(CPaintManagerUI* pm);
     CPaintManagerUI* GetParentResource() const;
@@ -388,7 +403,7 @@ private:
     static short m_L;
     static CStdPtrArray m_aPreMessages;
     static CStdPtrArray m_aPlugins;
-
+	static short m_viewScale;
 public:
 	static CDuiString m_pStrDefaultFontName;
 	CStdPtrArray m_aTranslateAccelerator;

@@ -356,6 +356,41 @@ void CFileView::SaveUITree(HTREEITEM hItem, TiXmlElement* pParentNode)
 	}
 }
 
+
+void CFileView::ConverToLuaCode()
+{
+	CString exePath = CGlobalVariable::GetCurPath();
+	CFileStatus status;
+	CString exefile = exePath + _T("xmlui_conv.exe");
+	if(!CFile::GetStatus(exefile, status))
+	{
+		CString msg = _T("缺少转换工具 xmlui_conv.exe, 请将该执行程序放在与DuiDesigner.exe 相同目录下!\n");
+		msg += exePath;
+		AfxMessageBox(msg);
+		return;
+	}
+
+	CString strPathName = CGlobalVariable::m_strProjectPath;
+	POSITION dtpos = theApp.GetFirstDocTemplatePosition();
+	CDocTemplate *dt = NULL;
+	while(dtpos != NULL)
+	{
+		dt = theApp.GetNextDocTemplate(dtpos);
+		ASSERT(dt!=NULL);
+		POSITION docpos = dt->GetFirstDocPosition();
+		CDocument *doc = NULL; 
+		while(docpos != NULL)
+		{
+			doc = dt->GetNextDoc(docpos);
+			ASSERT(doc!=NULL);
+			CString param = doc->GetPathName();
+			param += " ..\\yh2UILua";
+			ShellExecute(NULL,_T("open"),_T("xmlui_conv.exe"), param, exePath, SW_SHOWNORMAL);
+		}
+	}
+}
+
+
 void CFileView::OnFileNew()
 {
 	CMultiDocTemplate* pUIDocTemplate = theApp.GetUIDocTemplate();

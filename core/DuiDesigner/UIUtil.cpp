@@ -115,4 +115,42 @@ LPSTR  StringAllocA(size_t len) { return (LPSTR)__malloc(len); }
 void   StringFreeW(LPWSTR strW) { __free(strW); }
 void   StringFreeA(LPSTR strA)  { __free(strA); }
 
+
+
 } // namespace StringConvertor
+
+
+
+wstring GetTextAlignStr(DWORD alignValue)
+{
+	wstring buf[3];
+	wstring ret;
+
+	buf[0] = _T("left");
+	if(alignValue & DT_CENTER)
+		buf[0] = _T("");
+
+	if(alignValue & DT_RIGHT)
+		buf[0] = _T("right");
+
+	buf[1] = _T("top");
+	if(alignValue & DT_VCENTER)
+		buf[1] = _T("");
+
+	if(alignValue & DT_BOTTOM)
+		buf[1] = _T("bottom");
+
+	if(alignValue & DT_WORDBREAK)
+		buf[2] = _T("wrap");
+
+	for (int i =0; i < 3; ++i)
+	{
+		if (!buf[i].empty())
+		{
+			if (!ret.empty())
+				ret += _T("|");
+			ret += buf[i];
+		}
+	}
+	return ret;
+}

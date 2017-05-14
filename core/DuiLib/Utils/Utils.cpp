@@ -8,7 +8,7 @@ namespace DuiLib
 	//
 	//
 
-	/*CPoint::CPoint()
+	CPoint::CPoint()
 	{
 		x = y = 0;
 	}
@@ -29,35 +29,35 @@ namespace DuiLib
 	{
 		x = GET_X_LPARAM(lParam);
 		y = GET_Y_LPARAM(lParam);
-	}*/
+	}
 
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	//
 	//
 
-	//CSize::CSize()
-	//{
-	//	cx = cy = 0;
-	//}
+	CSize::CSize()
+	{
+		cx = cy = 0;
+	}
 
-	//CSize::CSize(const SIZE& src)
-	//{
-	//	cx = src.cx;
-	//	cy = src.cy;
-	//}
+	CSize::CSize(const SIZE& src)
+	{
+		cx = src.cx;
+		cy = src.cy;
+	}
 
-	//CSize::CSize(const RECT rc)
-	//{
-	//	cx = rc.right - rc.left;
-	//	cy = rc.bottom - rc.top;
-	//}
+	CSize::CSize(const RECT rc)
+	{
+		cx = rc.right - rc.left;
+		cy = rc.bottom - rc.top;
+	}
 
-	//CSize::CSize(int _cx, int _cy)
-	//{
-	//	cx = _cx;
-	//	cy = _cy;
-	//}
+	CSize::CSize(int _cx, int _cy)
+	{
+		cx = _cx;
+		cy = _cy;
+	}
 
 
 	/////////////////////////////////////////////////////////////////////////////////////
@@ -659,7 +659,20 @@ namespace DuiLib
 		}
 		return CDuiString(m_pstr + iPos, iLength);
 	}
-
+	int CDuiString::FindNotOf(TCHAR ch, int iPos /*= 0*/) const
+	{
+		ASSERT(iPos>=0 && iPos<=GetLength());
+		if( iPos != 0 && (iPos < 0 || iPos >= GetLength()) ) return -1;
+		LPCTSTR p = m_pstr + iPos;
+		LPCTSTR end = m_pstr + GetLength();
+		while (p < end) {
+			if (*p != ch)
+				break;
+			p++;
+		}
+//		if( p == end ) return -1;
+		return (int)(p - m_pstr);
+	}
 	int CDuiString::Find(TCHAR ch, int iPos /*= 0*/) const
 	{
 		ASSERT(iPos>=0 && iPos<=GetLength());
@@ -1002,5 +1015,75 @@ namespace DuiLib
 	{
 		::SetCursor(m_hOrigCursor);
 	}
+	//
+	// CDuiStringUtil
+	//
+	void CDuiStringUtil::ParseTextAlign( const CDuiString& str,UINT& style,int& halign,int& valign )
+	{
+		halign = DT_CENTER;
+		valign = DT_VCENTER;
+		CDuiString vec[4];
+		int veclen = DuiLib::CDuiStringUtil::Split( str, _T('|'), vec, 4 );
+		for (int i = 0; i < veclen; ++i)
+		{
+			CDuiString& str = vec[i];
+			str.MakeLower();
+			if (str == _T("right"))
+				halign= DT_RIGHT;
+			else if(str == _T("left"))
+				halign = DT_LEFT;
+			else if (str == _T("bottom"))
+				valign= DT_BOTTOM;
+			else if(str == _T("top"))
+				valign = DT_TOP;
+			else if(str == _T("warp"))
+				style |= DT_WORDBREAK;
+		}
+		style &= ~(DT_CENTER | DT_RIGHT | DT_BOTTOM |DT_VCENTER);
+		style |= (halign | valign);
+	}
 
+	int CDuiStringUtil::Split( const CDuiString& str,TCHAR delim,CDuiString* ret,int len)
+	{
+		if (ret == NULL)
+			return -1;
+		//// Pre-allocate some space for performance
+		//ret.reserve(maxSplits ? maxSplits+1 : 10);    // 10 is guessed capacity for most case
+		int retIdx = 0;
+		UINT numSplits = 0;
+
+		int start, pos;
+		start = 0;
+		do 
+		{
+			pos = str.Find(delim, start);
+			if (pos == start)
+			{
+				// Do nothing
+				start = pos + 1;
+			}
+			else if (pos == -1)
+			{
+				if (retIdx<len)
+				{
+					// Copy the rest of the string
+					ret[retIdx++] = str.Mid(start, -1);
+				}
+				break;
+			}
+			else
+			{
+				// Copy up to delimiter
+				if (retIdx<len)
+					ret[retIdx++] = str.Mid(start, pos - start);
+				start = pos + 1;
+			}
+			// parse up to next real data
+			start = str.FindNotOf(delim, start);
+			++numSplits;
+
+		} while (pos != -1);
+
+		return retIdx;
+	}
 } // namespace DuiLib

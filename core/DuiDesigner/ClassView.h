@@ -18,6 +18,7 @@ protected:
 public:
 	afx_msg void OnTvnSelChanged(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	virtual LRESULT DefWindowProc(UINT message, WPARAM wParam, LPARAM lParam);
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -38,6 +39,7 @@ public:
 	BOOL RemoveUITreeItem(HTREEITEM hItem);
 	void SelectUITreeItem(CControlUI* pControl);
 	void RenameUITreeItem(CControlUI* pControl, LPCTSTR lpszName);
+	void SwitchUITreeItem(CControlUI* pSwitch,CControlUI* pControl);
 
 protected:
 	BOOL RemoveTreeItem(CControlUI* pControl);

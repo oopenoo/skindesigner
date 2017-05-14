@@ -5,20 +5,6 @@ namespace DuiLib {
 
 /////////////////////////////////////////////////////////////////////////////////////
 //
-enum {
-	Left = 1, Top = 2, Right = 4, Bottom = 8, 
-	LeftTop = Left | Top,
-	LeftRight = Left | Right,
-	LeftBottom = Left | Bottom,
-	TopRight = Top | Right,
-	TopBottom = Top | Bottom,
-	RightBottom = Right | Bottom,
-	LeftTopRight = Left | Top | Right,
-	LeftTopBottom = Left | Top | Bottom,
-	LeftRightBottom = Left | Right | Bottom,
-	TopRightBottom = Top | Right | Bottom,
-	LeftTopRightBottom = Left | Top | Right | Bottom,
-};
 
 typedef CControlUI* (CALLBACK* FINDCONTROLPROC)(CControlUI*, LPVOID);
 
@@ -80,8 +66,6 @@ public:
 	void SetBorderStyle(int nStyle);
 
     // 位置相关
-	int  GetAnchorMode();
-	void SetAnchorMode(int nAnchorMode);
     virtual const RECT& GetPos() const;
     virtual void SetPos(RECT rc);
     virtual int GetWidth() const;
@@ -104,6 +88,10 @@ public:
     virtual void SetMinHeight(int cy);
     virtual int GetMaxHeight() const;
     virtual void SetMaxHeight(int cy);
+    virtual void SetRelativePos(SIZE szMove,SIZE szZoom);
+    virtual void SetRelativeParentSize(SIZE sz);
+    virtual TRelativePosUI GetRelativePos() const;
+    virtual bool IsRelativePos() const;
 
     // 鼠标提示
     virtual CDuiString GetToolTip() const;
@@ -200,6 +188,7 @@ protected:
     bool m_bFocused;
     bool m_bFloat;
     bool m_bSetPos; // 防止SetPos循环调用
+    TRelativePosUI m_tRelativePos;
 
     CDuiString m_sText;
     CDuiString m_sToolTip;
@@ -221,15 +210,6 @@ protected:
     SIZE m_cxyBorderRound;
     RECT m_rcPaint;
 	RECT m_rcBorderSize;
-
-public:
-	int m_nAnchorMode;
-	int		m_nMarginLeft;
-	int		m_nMarginTop;
-	int		m_nMarginRight;
-	int		m_nMarginBottom;
-	int		m_nWidth;
-	int		m_nHeight;
 };
 
 } // namespace DuiLib

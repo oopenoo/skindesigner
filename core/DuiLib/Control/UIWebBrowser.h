@@ -2,6 +2,9 @@
 #define __UIWEBBROWSER_H__
 
 #pragma once
+#include <atlconv.h>
+#include <atlcomcli.h>
+#include <mshtml.h>
 
 #include "Utils/WebBrowserEventHandler.h"
 #include <ExDisp.h>

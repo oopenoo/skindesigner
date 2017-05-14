@@ -243,6 +243,14 @@
 #define ID_View_Project                 32891
 #define ID_View_ToolsBox                32892
 #define ID_View_Property                32893
+#define ID_FORMEDIT_SCALE1X             32900
+#define ID_32901                        32901
+#define ID_FORMEDIT_SCALE4X             32902
+#define ID_32903                        32903
+#define ID_FILE_TOLUACODE               32904
+#define ID_BUTTON32907                  32907
+#define ID_FORMEDIT_AUXBORDER           32907
+#define ID_32908                        32908
 
 // Next default values for new objects
 // 

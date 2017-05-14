@@ -21,27 +21,27 @@ namespace DuiLib
 	/////////////////////////////////////////////////////////////////////////////////////
 	//
 
-	//class UILIB_API CPoint : public tagPOINT
-	//{
-	//public:
-	//	CPoint();
-	//	CPoint(const POINT& src);
-	//	CPoint(int x, int y);
-	//	CPoint(LPARAM lParam);
-	//};
+	class UILIB_API CPoint : public tagPOINT
+	{
+	public:
+		CPoint();
+		CPoint(const POINT& src);
+		CPoint(int x, int y);
+		CPoint(LPARAM lParam);
+	};
 
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	//
 
-	//class UILIB_API CSize : public tagSIZE
-	//{
-	//public:
-	//	CSize();
-	//	CSize(const SIZE& src);
-	//	CSize(const RECT rc);
-	//	CSize(int cx, int cy);
-	//};
+	class UILIB_API CSize : public tagSIZE
+	{
+	public:
+		CSize();
+		CSize(const SIZE& src);
+		CSize(const RECT rc);
+		CSize(int cx, int cy);
+	};
 
 
 	/////////////////////////////////////////////////////////////////////////////////////
@@ -186,13 +186,15 @@ namespace DuiLib
 
 		int Find(TCHAR ch, int iPos = 0) const;
 		int Find(LPCTSTR pstr, int iPos = 0) const;
+		int FindNotOf(TCHAR ch, int iPos = 0 ) const;
+		
 		int ReverseFind(TCHAR ch) const;
 		int Replace(LPCTSTR pstrFrom, LPCTSTR pstrTo);
 
 		int __cdecl Format(LPCTSTR pstrFormat, ...);
         int __cdecl Format(LPCTSTR pstrFormat, va_list Args);
 		int __cdecl SmallFormat(LPCTSTR pstrFormat, ...);
-
+		
 	protected:
 		LPTSTR m_pstr;
 		TCHAR m_szBuffer[MAX_LOCAL_STRING_LEN + 1];
@@ -284,6 +286,13 @@ namespace DuiLib
 		{ 
 			VariantClear(this); 
 		}
+	};
+
+	class UILIB_API CDuiStringUtil
+	{
+	public:
+		static void ParseTextAlign(const CDuiString& str,UINT& style,int& halign,int& valign);
+		static int CDuiStringUtil::Split( const CDuiString& str,TCHAR delim,CDuiString* ret,int len);
 	};
 
 }// namespace DuiLib

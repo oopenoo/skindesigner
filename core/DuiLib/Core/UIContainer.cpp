@@ -73,6 +73,37 @@ namespace DuiLib
 	{
 		return m_items.GetSize();
 	}
+	
+	CControlUI *CContainerUI::ResetOrder(CControlUI* pControl,bool up)
+	{
+		int lastIdx = -1;
+		for( int it = 0; it < m_items.GetSize(); it++ ) {
+			if( static_cast<CControlUI*>(m_items[it]) == pControl ) {
+				lastIdx = it;
+				break;
+			}
+		}
+
+		if (lastIdx != -1)
+		{
+			if (up && lastIdx > 0)
+			{
+				m_items.Remove(lastIdx);
+				m_items.InsertAt(lastIdx-1, pControl);
+
+				CControlUI* ret = static_cast<CControlUI*>(m_items[lastIdx]);
+				return ret;
+			}
+			else if(!up && lastIdx < m_items.GetSize()-1)
+			{
+				m_items.Remove(lastIdx);
+				m_items.InsertAt(lastIdx+1, pControl);
+				CControlUI* ret = static_cast<CControlUI*>(m_items[lastIdx]);
+				return ret;
+			}
+		}
+		return NULL;
+	}
 
 	bool CContainerUI::Add(CControlUI* pControl)
 	{
@@ -535,7 +566,6 @@ namespace DuiLib
 		rc.top += m_rcInset.top;
 		rc.right -= m_rcInset.right;
 		rc.bottom -= m_rcInset.bottom;
-		RECT rcCtrl = rc;
 
 		for( int it = 0; it < m_items.GetSize(); it++ ) {
 			CControlUI* pControl = static_cast<CControlUI*>(m_items[it]);
@@ -544,39 +574,7 @@ namespace DuiLib
 				SetFloatPos(it);
 			}
 			else {
-				int nAnchorMode = pControl->GetAnchorMode();
-				if ( nAnchorMode >0 ) {
-					DWORD dwFlag = nAnchorMode;
-					if ( dwFlag & Left ) {
-						rcCtrl.left = rc.left + pControl->m_nMarginLeft;
-						if ( dwFlag & Right ) {
-							rcCtrl.right = rc.right + pControl->m_nMarginRight;
-						}else{
-							rcCtrl.right = rcCtrl.left + m_nWidth;
-						}
-					}else{
-						if ( dwFlag & Right ) {
-							rcCtrl.right = rc.right + pControl->m_nMarginRight;
-						}
-						rcCtrl.left = rcCtrl.right - m_nWidth;
-					}
-
-					if ( dwFlag & Top ) {
-						rcCtrl.top = rc.top + m_nMarginTop;
-						if ( dwFlag & Bottom ) {
-							rcCtrl.bottom = rc.bottom + pControl->m_nMarginBottom;
-						}else{
-							rcCtrl.bottom = rcCtrl.top + m_nHeight;
-						}
-					}else{
-						if ( dwFlag & Bottom ) {
-							rcCtrl.bottom = rc.bottom + pControl->m_nMarginBottom;
-						}
-						rcCtrl.top = rcCtrl.bottom - m_nHeight;
-					}
-				}
-
-				pControl->SetPos(rcCtrl); // 所有非float子控件放大到整个客户区
+				pControl->SetPos(rc); // 所有非float子控件放大到整个客户区
 			}
 		}
 	}
@@ -757,6 +755,7 @@ namespace DuiLib
 		SIZE szXY = pControl->GetFixedXY();
 		SIZE sz = {pControl->GetFixedWidth(), pControl->GetFixedHeight()};
 		RECT rcCtrl = { 0 };
+#if 0
 		if( szXY.cx >= 0 ) {
 			rcCtrl.left = m_rcItem.left + szXY.cx;
 			rcCtrl.right = m_rcItem.left + szXY.cx + sz.cx;
@@ -773,21 +772,28 @@ namespace DuiLib
 			rcCtrl.top = m_rcItem.bottom + szXY.cy - sz.cy;
 			rcCtrl.bottom = m_rcItem.bottom + szXY.cy;
 		}
-		//if( pControl->IsRelativePos() )
-		//{
-		//	TRelativePosUI tRelativePos = pControl->GetRelativePos();
-		//	SIZE szParent = {m_rcItem.right-m_rcItem.left,m_rcItem.bottom-m_rcItem.top};
-		//	if(tRelativePos.szParent.cx != 0)
-		//	{
-		//		int nIncrementX = szParent.cx-tRelativePos.szParent.cx;
-		//		int nIncrementY = szParent.cy-tRelativePos.szParent.cy;
-		//		rcCtrl.left += (nIncrementX*tRelativePos.nMoveXPercent/100);
-		//		rcCtrl.top += (nIncrementY*tRelativePos.nMoveYPercent/100);
-		//		rcCtrl.right = rcCtrl.left+sz.cx+(nIncrementX*tRelativePos.nZoomXPercent/100);
-		//		rcCtrl.bottom = rcCtrl.top+sz.cy+(nIncrementY*tRelativePos.nZoomYPercent/100);
-		//	}
-		//	pControl->SetRelativeParentSize(szParent);
-		//}
+#else
+			rcCtrl.left = m_rcItem.left + szXY.cx;
+			rcCtrl.right = m_rcItem.left + szXY.cx + sz.cx;
+			rcCtrl.top = m_rcItem.top + szXY.cy;
+			rcCtrl.bottom = m_rcItem.top + szXY.cy + sz.cy;
+
+#endif
+		if( pControl->IsRelativePos() )
+		{
+			TRelativePosUI tRelativePos = pControl->GetRelativePos();
+			SIZE szParent = {m_rcItem.right-m_rcItem.left,m_rcItem.bottom-m_rcItem.top};
+			if(tRelativePos.szParent.cx != 0)
+			{
+				int nIncrementX = szParent.cx-tRelativePos.szParent.cx;
+				int nIncrementY = szParent.cy-tRelativePos.szParent.cy;
+				rcCtrl.left += (nIncrementX*tRelativePos.nMoveXPercent/100);
+				rcCtrl.top += (nIncrementY*tRelativePos.nMoveYPercent/100);
+				rcCtrl.right = rcCtrl.left+sz.cx+(nIncrementX*tRelativePos.nZoomXPercent/100);
+				rcCtrl.bottom = rcCtrl.top+sz.cy+(nIncrementY*tRelativePos.nZoomYPercent/100);
+			}
+			pControl->SetRelativeParentSize(szParent);
+		}
 		pControl->SetPos(rcCtrl);
 	}
 

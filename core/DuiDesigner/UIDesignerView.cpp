@@ -18,6 +18,8 @@
 #define new DEBUG_NEW
 #endif
 
+int g_scale = 1; // 全视图缩放比例
+
 //////////////////////////////////////////////////////////////////////////
 // CUIDesignerView
 
@@ -80,7 +82,10 @@ BEGIN_MESSAGE_MAP(CUIDesignerView, CScrollView)
 	ON_WM_MOUSEMOVE()
 	ON_WM_KEYDOWN()
 	ON_WM_DESTROY()
-	ON_MESSAGE(WM_RELOADDOCUMENTFILE, &CUIDesignerView::OnReloadDocumentFile)
+	ON_COMMAND(ID_FORMEDIT_SCALE1X, &CUIDesignerView::OnFormeditScale1x)
+	ON_COMMAND(ID_FORMEDIT_SCALE4X, &CUIDesignerView::OnFormeditScale4x)
+	ON_UPDATE_COMMAND_UI(ID_FORMEDIT_SCALE4X, &CUIDesignerView::OnUpdateFormeditScale4x)
+	ON_UPDATE_COMMAND_UI(ID_FORMEDIT_SCALE1X, &CUIDesignerView::OnUpdateFormeditScale1x)
 END_MESSAGE_MAP()
 
 // CUIDesignerView 构造/析构
@@ -152,7 +157,27 @@ void CUIDesignerView::OnDraw(CDC* pDrawDC)
 	}
 
 	m_LayoutManager.Draw(&hCloneDC);
-	pDC->BitBlt(szFormOffset.cx,szFormOffset.cy,szForm.cx,szForm.cy,&hCloneDC,0,0,SRCCOPY);
+	
+/*
+	BOOL StretchBlt(
+		__in  HDC hdcDest,
+		__in  int nXOriginDest,
+		__in  int nYOriginDest,
+		__in  int nWidthDest,
+		__in  int nHeightDest,
+		__in  HDC hdcSrc,
+		__in  int nXOriginSrc,
+		__in  int nYOriginSrc,
+		__in  int nWidthSrc,
+		__in  int nHeightSrc,
+		__in  DWORD dwRop
+		);
+*/
+	pDC->StretchBlt(szFormOffset.cx,szFormOffset.cy,szForm.cx*g_scale, szForm.cy*g_scale, &hCloneDC,0,0,
+		szForm.cx, szForm.cy,
+		SRCCOPY);
+	// pDC->BitBlt(szFormOffset.cx,szFormOffset.cy,szForm.cx, szForm.cy, &hCloneDC,0,0,SRCCOPY);
+
 	hCloneDC.SelectObject(hOldBitmap);
 	::DeleteDC(hCloneDC);
 	::DeleteObject(hNewBitmap);
@@ -253,6 +278,13 @@ void CUIDesignerView::OnInitialUpdate()
 	m_MultiTracker.Add(CreateTracker(pForm));
 
 	SetScrollSizes(MM_TEXT,CSize(FORM_INIT_WIDTH+80,FORM_INIT_HEIGHT+80));
+	CPaintManagerUI::SetVScale(g_scale);
+}
+
+BOOL IsRectInSide(const CRect& out_rc, const CRect& in_rc)
+{
+	return (out_rc.left <= in_rc.left && out_rc.right >= in_rc.right &&
+		out_rc.top <= in_rc.top && out_rc.bottom >= in_rc.bottom);
 }
 
 void CUIDesignerView::OnLButtonDown(UINT nFlags, CPoint point)
@@ -264,7 +296,13 @@ void CUIDesignerView::OnLButtonDown(UINT nFlags, CPoint point)
 
 	CPoint ptLogical=point-m_ptDPtoLP;//Device coordinates to Logical coordinates
 	ptLogical.Offset(-FORM_OFFSET_X,-FORM_OFFSET_Y);//Logical coordinates to Form coordinates
-
+	if (g_scale>1)
+	{
+		ptLogical=point-m_ptDPtoLP;
+		ptLogical.x /= g_scale;
+		ptLogical.y /= g_scale;
+		ptLogical.Offset(-FORM_OFFSET_X,-FORM_OFFSET_Y);//Logical coordinates to Form coordinates
+	}
 	CControlUI* pControl=m_LayoutManager.FindControl(ptLogical);
 	CTrackerElement* pTracker=NULL;
 	if(pControl==NULL)
@@ -315,10 +353,38 @@ void CUIDesignerView::OnLButtonDown(UINT nFlags, CPoint point)
 			m_MultiTracker.Add(CreateTracker(pNewControl));
 			this->GetDocument()->SetModifiedFlag();
 		}
+		else
+		{
+			// 框选, 需要框住整个控件
+			rect.OffsetRect( GetScrollPosition() );
+			CContainerUI* pContainer=dynamic_cast<CContainerUI *>(GetContainerUI());
+			if(pContainer!=NULL)
+			{
+				m_MultiTracker.RemoveAll();
+				for(int i=0;i<pContainer->GetCount();i++)
+				{
+					CControlUI *pChild = pContainer->GetItemAt(i);
+					if (pChild!=NULL)
+					{
+						CRect tmp;
+						CRect ctrl = pChild->GetPos();
+						if (g_scale>1)
+						{
+							ctrl.left *= g_scale;
+							ctrl.right *= g_scale;
+							ctrl.top *= g_scale;
+							ctrl.bottom *= g_scale;
+						}
+						if (IsRectInSide(rect, ctrl))
+						{
+							m_MultiTracker.Add(CreateTracker(pChild));
+						}
+					}
+				}
+			}
+		}
 	}
-
 	g_pClassView->SelectUITreeItem(m_MultiTracker.GetFocused());
-
 	if(m_MultiTracker.GetSize()==1)
 		g_pPropertiesWnd->ShowProperty(m_MultiTracker.GetFocused());
 	else
@@ -329,6 +395,123 @@ void CUIDesignerView::OnLButtonDown(UINT nFlags, CPoint point)
 // 	__super::OnLButtonDown(nFlags, point);
 }
 
+CControlUI *CUIDesignerView::GetContainerUI()
+{
+	CWindowUI* pRootForm=m_LayoutManager.GetForm();
+	if (pRootForm==NULL)
+		return NULL;
+
+	CControlUI* pFocused = NULL;
+	CArray<CControlUI*,CControlUI*> arrSelected;
+	if(m_MultiTracker.GetSelected(arrSelected))
+	{
+		for (int i=0;i<arrSelected.GetSize() && pFocused == NULL;i++)
+		{
+			CControlUI* pControl=arrSelected.GetAt(i);
+			CString strClassName = pControl->GetClass();
+			if(strClassName ==_T("ContainerUI"))
+			{
+				pFocused = pControl;
+			}
+			else if(strClassName == _T("FormUI"))
+			{
+				CWindowUI* pForm=static_cast<CWindowUI*>(pControl);
+				pFocused = pForm->GetItemAt(0);
+			}
+			else
+			{
+				CControlUI *pParent = pControl->GetParent();
+				while(pParent != NULL)
+				{
+					strClassName = pParent->GetClass();
+					if (strClassName == _T("ContainerUI"))
+					{
+						pFocused = pParent;
+						break;
+					}
+					pParent = pParent->GetParent();
+				}
+			}
+		}
+	}
+	else
+	{
+		pFocused = pRootForm->GetItemAt(0);
+	}
+	return pFocused;
+}
+
+void CUIDesignerView::NewPictureUI(const CString& picfile)
+{
+	CControlUI* pControl = GetContainerUI();
+	if (pControl==NULL)
+		return;
+	CString imgUserData;
+	CString bkImageFile;
+	CRect rect(0,0,100,100);
+	CPaintManagerUI *pPaintmgr = m_LayoutManager.GetManager();
+	if (pPaintmgr!=NULL)
+	{
+		const TImageInfo* pImageInfo=pPaintmgr->GetImageEx(picfile);
+		if (pImageInfo == NULL)
+		{
+			pImageInfo=pPaintmgr->AddImage(picfile);
+		}
+		if (pImageInfo != NULL)
+		{
+			CRect rcParent = pControl->GetPos();
+			CRect rcUnit(0,0,pImageInfo->nX, pImageInfo->nY);
+			int nOffsetX=(rcParent.left+rcParent.right)/2-(rcUnit.left+rcUnit.right)/2;
+			int nOffsetY=(rcParent.top+rcParent.bottom-(rcUnit.top+rcUnit.bottom))/2;
+			rcUnit.OffsetRect(CPoint(nOffsetX, nOffsetY));
+			rect = rcUnit;
+			bkImageFile = picfile;
+			imgUserData = pImageInfo->userData;
+		}
+	}
+	if (!bkImageFile.IsEmpty())
+	{
+		CString imgExt = bkImageFile.Right(4);
+		imgExt.MakeLower();
+
+		CString f = pControl->GetBkImage();
+		// 通过拖动给容器设置背景
+		if ( f.IsEmpty() && 
+			pControl->GetWidth() == rect.Width() && pControl->GetHeight()==rect.Height())
+		{
+			pControl->SetBkImage(bkImageFile);
+			g_pPropertiesWnd->ShowProperty(pControl);
+		}
+		else
+		{
+			// 根据图片创建组件, 创建按钮组件, 需要在工具箱中先选择按钮
+			int nClass=g_pToolBoxWnd->GetCurSel()->GetClass();
+			if (nClass != classButton)
+				nClass = classControl;
+			CControlUI* pNewControl=m_LayoutManager.NewUI(nClass, rect, pControl, &m_LayoutManager);
+			pNewControl->SetBkImage(bkImageFile);
+			if (imgExt == ".sad")
+			{
+				pNewControl->SetUserData(imgUserData);
+			}
+			CArray<CControlUI*,CControlUI*> arrSelected;
+			arrSelected.Add(pNewControl);
+			m_UICommandHistory.Begin(arrSelected, actionAdd);
+			m_UICommandHistory.End();
+			g_pClassView->InsertUITreeItem(pNewControl);
+			g_pToolBoxWnd->SetCurSel(classPointer);
+			m_MultiTracker.RemoveAll();
+			m_MultiTracker.Add(CreateTracker(pNewControl));
+			this->GetDocument()->SetModifiedFlag();
+			g_pClassView->SelectUITreeItem(m_MultiTracker.GetFocused());
+			if(m_MultiTracker.GetSize()==1)
+				g_pPropertiesWnd->ShowProperty(m_MultiTracker.GetFocused());
+			else
+				g_pPropertiesWnd->ShowProperty(NULL);
+		}
+	}
+	Invalidate(FALSE);
+}
 BOOL CUIDesignerView::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
@@ -353,6 +536,8 @@ void CUIDesignerView::OnSize(UINT nType, int cx, int cy)
 		return;
 
 	SIZE size=m_LayoutManager.GetForm()->GetInitSize();
+	size.cx *= g_scale;
+	size.cy *= g_scale;
 	SetScrollSizes(MM_TEXT,CSize(size.cx+FORM_OFFSET_X+80,
 		size.cy+FORM_OFFSET_Y+80));
 
@@ -428,6 +613,8 @@ void CUIDesignerView::Notify(TNotifyUI& msg)
 			pForm->SetInitSize(size.cx,size.cy);
 
 			g_pPropertiesWnd->SetPropValue(pControl,tagWindowSize);
+			size.cx *= g_scale;
+			size.cy *= g_scale;
 			SetScrollSizes(MM_TEXT,CSize(size.cx+FORM_OFFSET_X+80,
 				size.cy+FORM_OFFSET_Y+80));
 			m_MultiTracker.SetFormSize(size);
@@ -452,6 +639,8 @@ void CUIDesignerView::Notify(TNotifyUI& msg)
 		pForm->SetFixedWidth(size.cx);
 		pForm->SetFixedHeight(size.cy);
 
+		size.cx *= g_scale;
+		size.cy *= g_scale;
 		SetScrollSizes(MM_TEXT,CSize(size.cx+FORM_OFFSET_X+80,
 			size.cy+FORM_OFFSET_Y+80));
 		m_MultiTracker.SetFormSize(size);
@@ -510,12 +699,36 @@ void CUIDesignerView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		OnMicoMoveRight();
 		break;
 	}
-
 	__super::OnKeyDown(nChar, nRepCnt, nFlags);
+}
+
+inline BOOL IsPropertiesWnd(CWnd *pFocus)
+{
+	if (pFocus!=NULL)
+	{
+		CWnd *pParent = pFocus;
+		CWnd *pLast = NULL;
+		while(pParent = pParent->GetParent())
+		{
+			if (g_pPropertiesWnd == pParent)
+				return TRUE;
+			pLast = pParent;
+		}
+	}
+	return FALSE;
 }
 
 void CUIDesignerView::OnDeleteUI()
 {
+	CWnd *pProp = g_pPropertiesWnd;
+	CWnd *pFocus = GetFocus();
+	if (IsPropertiesWnd(pFocus))
+	{
+		// 属性工具栏可以使用删除键
+		pFocus->SendMessage(WM_KEYDOWN,VK_DELETE);
+		return ;
+	}
+
 	CArray<CControlUI*,CControlUI*> arrSelected;
 	m_MultiTracker.GetSelected(arrSelected);
 	RemoveForm(arrSelected);
@@ -1031,6 +1244,11 @@ void CUIDesignerView::PasteUI(LPCTSTR xml)
 		pRootContainer->SetAutoDestroy(false);
 		delete pRootContainer;
 		this->GetDocument()->SetModifiedFlag();
+
+		if (arrSelected.GetSize() == 1)
+		{
+			g_pPropertiesWnd->ShowProperty(arrSelected.GetAt(0));
+		}
 	}
 }
 
@@ -1068,55 +1286,145 @@ void CUIDesignerView::OnUpdateEditRedo(CCmdUI* pCmdUI)
 	pCmdUI->Enable(m_UICommandHistory.CanRedo());
 }
 
+void CUIDesignerView::ResetControlOrder(bool up)
+{
+	CArray<CControlUI*,CControlUI*> arrSelected;
+	if (m_MultiTracker.GetSelected(arrSelected))
+	{
+		for(int i=0;i<arrSelected.GetSize();i++)
+		{
+			CControlUI* pControl=arrSelected.GetAt(i);
+			if(pControl == NULL || pControl->GetParent()==NULL)
+				continue;
+			if(pControl->GetClass()==_T("ContainerUI"))
+				continue;
+
+			CControlUI* pParent = pControl->GetParent();
+			CContainerUI* pParentContainer = static_cast<CContainerUI*>(pParent->GetInterface(_T("Container")));
+			if(pParentContainer!=NULL)
+			{
+				CControlUI *pTmp = pParentContainer->ResetOrder(pControl, up);
+				if (pTmp!= NULL)
+				{
+					g_pClassView->SwitchUITreeItem(pTmp, pControl);
+					g_pClassView->InvalidateRect(NULL); g_pClassView->UpdateWindow();
+					InvalidateRect(NULL); UpdateWindow();
+					break;
+				}
+			}
+		}
+		this->GetDocument()->SetModifiedFlag();
+	}
+}
+
+void CUIDesignerView::UpdateUIPosInProp()
+{
+	CArray<CControlUI*,CControlUI*> arrSelected;
+	if (m_MultiTracker.GetSelected(arrSelected))
+	{
+		if (arrSelected.GetSize() == 1 )
+		{
+			CControlUI *pControl = g_pPropertiesWnd->GetCurUI();
+			if (pControl!=NULL)
+			{
+				g_pPropertiesWnd->SetPropValue(pControl,tagPos);
+				g_pPropertiesWnd->SetPropValue(pControl,tagSize);
+			}
+		}
+	}
+}
 void CUIDesignerView::OnMicoMoveUp()
 {
+	int moveOffset = MICO_MOVE_SPACE;
+	if(::GetKeyState(VK_SHIFT)&0x8000)
+	{
+		moveOffset *= 10;
+	}
+	else if(::GetKeyState(VK_CONTROL)&0x8000)
+	{
+		ResetControlOrder(true);
+		return;
+	}
 	CArray<CControlUI*,CControlUI*> arrSelected;
 
 	if(m_MultiTracker.GetSelected(arrSelected))
 	{
+		if(arrSelected.GetSize() < 1|| arrSelected[0]->GetParent()==NULL)
+			return;
 		m_UICommandHistory.Begin(arrSelected, actionModify);
-		m_LayoutManager.MicoMoveUp(arrSelected,MICO_MOVE_SPACE);
+		m_LayoutManager.MicoMoveUp(arrSelected,moveOffset);
 		m_UICommandHistory.End();
 		this->GetDocument()->SetModifiedFlag();
+		UpdateUIPosInProp();
 	}
 }
 
 void CUIDesignerView::OnMicoMoveDown()
 {
+	int moveOffset = MICO_MOVE_SPACE;
+	if(::GetKeyState(VK_SHIFT)&0x8000)
+	{
+		moveOffset *= 10;
+	}
+	else if(::GetKeyState(VK_CONTROL)&0x8000)
+	{
+		ResetControlOrder(false);
+		return;
+	}
+
 	CArray<CControlUI*,CControlUI*> arrSelected;
 
 	if(m_MultiTracker.GetSelected(arrSelected))
 	{
+		if(arrSelected.GetSize() < 1|| arrSelected[0]->GetParent()==NULL)
+			return;
 		m_UICommandHistory.Begin(arrSelected, actionModify);
-		m_LayoutManager.MicoMoveDown(arrSelected,MICO_MOVE_SPACE);
+		m_LayoutManager.MicoMoveDown(arrSelected,moveOffset);
 		m_UICommandHistory.End();
 		this->GetDocument()->SetModifiedFlag();
+		UpdateUIPosInProp();
 	}
 }
 
 void CUIDesignerView::OnMicoMoveLeft()
 {
+	int moveOffset = MICO_MOVE_SPACE;
+	if(::GetKeyState(VK_SHIFT)&0x8000)
+	{
+		moveOffset *= 10;
+	}
 	CArray<CControlUI*,CControlUI*> arrSelected;
 
 	if(m_MultiTracker.GetSelected(arrSelected))
 	{
+		if(arrSelected.GetSize() < 1|| arrSelected[0]->GetParent()==NULL)
+			return;
 		m_UICommandHistory.Begin(arrSelected, actionModify);
-		m_LayoutManager.MicoMoveLeft(arrSelected,MICO_MOVE_SPACE);
+		m_LayoutManager.MicoMoveLeft(arrSelected,moveOffset);
 		m_UICommandHistory.End();
 		this->GetDocument()->SetModifiedFlag();
+		UpdateUIPosInProp();
 	}
 }
 
 void CUIDesignerView::OnMicoMoveRight()
 {
+	int moveOffset = MICO_MOVE_SPACE;
+	if(::GetKeyState(VK_SHIFT)&0x8000)
+	{
+		moveOffset *= 10;
+	}
 	CArray<CControlUI*,CControlUI*> arrSelected;
 
 	if(m_MultiTracker.GetSelected(arrSelected))
 	{
+		if(arrSelected.GetSize() < 1|| arrSelected[0]->GetParent()==NULL)
+			return;
 		m_UICommandHistory.Begin(arrSelected, actionModify);
-		m_LayoutManager.MicoMoveRight(arrSelected,MICO_MOVE_SPACE);
+		m_LayoutManager.MicoMoveRight(arrSelected,moveOffset);
 		m_UICommandHistory.End();
 		this->GetDocument()->SetModifiedFlag();
+		UpdateUIPosInProp();
 	}
 }
 
@@ -1289,4 +1597,74 @@ void CUIDesignerView::RemoveForm(CArray<CControlUI*,CControlUI*>& arrSelected)
 void CUIDesignerView::SetModifiedFlag(BOOL bModified/* = TRUE*/)
 {
 	this->GetDocument()->SetModifiedFlag(bModified);
+}
+
+
+void CUIDesignerView::OnFormeditScale1x()
+{
+	int oldScale = g_scale;
+	g_scale = 1;
+
+	SIZE size=m_LayoutManager.GetForm()->GetInitSize();
+	size.cx *= g_scale;
+	size.cy *= g_scale;
+	CPoint point=GetScrollPosition();
+	SetScrollSizes(MM_TEXT,CSize(size.cx+FORM_OFFSET_X+80,
+		size.cy+FORM_OFFSET_Y+80));
+
+	if (oldScale!=g_scale)
+	{
+		point.x = point.x * g_scale / oldScale;
+		point.y = point.y * g_scale / oldScale;
+		ScrollToPosition(point);
+	}
+
+
+	CPaintManagerUI::SetVScale(g_scale);
+	UpDateDPtoLPOffset();
+
+	CRect rcClient;
+	GetClientRect(rcClient);
+	InvalidateRect(rcClient);
+	UpdateWindow();
+}
+
+
+void CUIDesignerView::OnFormeditScale4x()
+{
+	int oldScale = g_scale;
+	g_scale = 4;
+	SIZE size=m_LayoutManager.GetForm()->GetInitSize();
+	size.cx *= g_scale;
+	size.cy *= g_scale;
+	CPoint point=GetScrollPosition();
+	SetScrollSizes(MM_TEXT,CSize(size.cx+FORM_OFFSET_X+80,
+		size.cy+FORM_OFFSET_Y+80));
+	CPaintManagerUI::SetVScale(g_scale);
+	
+	if (oldScale!=g_scale)
+	{
+		point.x = point.x * g_scale / oldScale;
+		point.y = point.y * g_scale / oldScale;
+		ScrollToPosition(point);
+	}
+
+
+	UpDateDPtoLPOffset();
+	
+	CRect rcClient;
+	GetClientRect(rcClient);
+	InvalidateRect(rcClient);
+	UpdateWindow();
+}
+
+void CUIDesignerView::OnUpdateFormeditScale4x(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(g_scale==4);
+}
+
+
+void CUIDesignerView::OnUpdateFormeditScale1x(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(g_scale==1);
 }

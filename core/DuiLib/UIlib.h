@@ -35,8 +35,7 @@
 #endif
 #else
 #if defined(_MSC_VER)
-//#define UILIB_API __declspec(dllimport)
-#define UILIB_API 
+#define UILIB_API __declspec(dllimport)
 #else
 #define UILIB_API 
 #endif

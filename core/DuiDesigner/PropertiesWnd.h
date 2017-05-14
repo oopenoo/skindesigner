@@ -23,6 +23,7 @@ public:
 
 	void ShowProperty(CControlUI* pControl);
 	void SetPropValue(CControlUI* pControl,int nTag);
+	CControlUI *GetCurUI() const;
 
 protected:
 	void SetUIValue(CMFCPropertyGridProperty* pProp,int nTag);

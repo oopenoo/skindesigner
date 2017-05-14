@@ -3,6 +3,8 @@
 *.lo
 *.o
 *.obj
+*.sdf
+*.opensdf
 
 # Precompiled Headers
 *.gch
@@ -31,8 +33,15 @@
 *.pch
 *.tlog
 *.bsc
+
 # Executables
 *.exe
 *.dep
 *.out
 *.app
+/core/UnicodeRelease
+/core/UnicodeDebug
+/core/Lib
+/core/Out
+/core/bin
+

@@ -25,14 +25,7 @@ m_dwFocusBorderColor(0),
 m_bColorHSL(false),
 m_nBorderSize(0),
 m_nBorderStyle(PS_SOLID),
-m_nTooltipWidth(300),
-m_nAnchorMode(0),
-m_nMarginLeft(0),
-m_nMarginTop(0),
-m_nMarginRight(0),
-m_nMarginBottom(0),
-m_nWidth(0),
-m_nHeight(0)
+m_nTooltipWidth(300)
 {
     m_cXY.cx = m_cXY.cy = 0;
     m_cxyFixed.cx = m_cxyFixed.cy = 0;
@@ -44,6 +37,7 @@ m_nHeight(0)
     ::ZeroMemory(&m_rcItem, sizeof(RECT));
     ::ZeroMemory(&m_rcPaint, sizeof(RECT));
 	::ZeroMemory(&m_rcBorderSize,sizeof(RECT));
+    ::ZeroMemory(&m_tRelativePos, sizeof(TRelativePosUI));
 }
 
 CControlUI::~CControlUI()
@@ -247,16 +241,6 @@ bool CControlUI::DrawImage(HDC hDC, LPCTSTR pStrImage, LPCTSTR pStrModify)
     return CRenderEngine::DrawImageString(hDC, m_pManager, m_rcItem, m_rcPaint, pStrImage, pStrModify);
 }
 
-int CControlUI::GetAnchorMode()
-{
-	return m_nAnchorMode;
-}
-
-void CControlUI::SetAnchorMode(int nAnchorMode)
-{
-	m_nAnchorMode = nAnchorMode;
-}
-
 const RECT& CControlUI::GetPos() const
 {
     return m_rcItem;
@@ -278,33 +262,29 @@ void CControlUI::SetPos(RECT rc)
         if( OnSize ) OnSize(this);
         m_bSetPos = false;
     }
-	CControlUI* pParent = GetParent();
-	if ( pParent==NULL ) {
-		return;
-	}
-	RECT rcParentPos = pParent->GetPos();
-	//if ( bInitedData==TRUE ) {
-	//	m_nMarginLeft = m_rcItem.left - rcParentPos.left;
-	//	m_nMarginTop = m_rcItem.top - rcParentPos.top;
-	//	m_nMarginRight = m_rcItem.right - rcParentPos.right;
-	//	m_nMarginBottom = m_rcItem.bottom - rcParentPos.bottom;
-	//	m_nWidth = m_rcItem.right - m_rcItem.left;
-	//	m_nHeight = m_rcItem.bottom - m_rcItem.top;
-	//}
-
+    
     if( m_bFloat ) {
-        if( m_cXY.cx >= 0 ) m_cXY.cx = m_rcItem.left - rcParentPos.left;
-        else m_cXY.cx = m_rcItem.right - rcParentPos.right;
-        if( m_cXY.cy >= 0 ) m_cXY.cy = m_rcItem.top - rcParentPos.top;
-        else m_cXY.cy = m_rcItem.bottom - rcParentPos.bottom;
-        m_cxyFixed.cx = m_rcItem.right - m_rcItem.left;
-        m_cxyFixed.cy = m_rcItem.bottom - m_rcItem.top;
+        CControlUI* pParent = GetParent();
+        if( pParent != NULL ) {
+            RECT rcParentPos = pParent->GetPos();
+#if 0 // 小于 0 自动移动到底部
+            if( m_cXY.cx >= 0 ) m_cXY.cx = m_rcItem.left - rcParentPos.left;
+            else m_cXY.cx = m_rcItem.right - rcParentPos.right;
+            if( m_cXY.cy >= 0 ) m_cXY.cy = m_rcItem.top - rcParentPos.top;
+            else m_cXY.cy = m_rcItem.bottom - rcParentPos.bottom;
+#else
+			m_cXY.cx = m_rcItem.left - rcParentPos.left;
+			m_cXY.cy = m_rcItem.top - rcParentPos.top;
+#endif
+            m_cxyFixed.cx = m_rcItem.right - m_rcItem.left;
+            m_cxyFixed.cy = m_rcItem.bottom - m_rcItem.top;
+        }
     }
 
     m_bUpdateNeeded = false;
     invalidateRc.Join(m_rcItem);
 
-    pParent = this;
+    CControlUI* pParent = this;
     RECT rcTemp;
     RECT rcParent;
     while( pParent = pParent->GetParent() )
@@ -449,6 +429,30 @@ void CControlUI::SetMaxHeight(int cy)
     else NeedUpdate();
 }
 
+void CControlUI::SetRelativePos(SIZE szMove,SIZE szZoom)
+{
+    m_tRelativePos.bRelative = TRUE;
+    m_tRelativePos.nMoveXPercent = szMove.cx;
+    m_tRelativePos.nMoveYPercent = szMove.cy;
+    m_tRelativePos.nZoomXPercent = szZoom.cx;
+    m_tRelativePos.nZoomYPercent = szZoom.cy;
+}
+
+void CControlUI::SetRelativeParentSize(SIZE sz)
+{
+    m_tRelativePos.szParent = sz;
+}
+
+TRelativePosUI CControlUI::GetRelativePos() const
+{
+    return m_tRelativePos;
+}
+
+bool CControlUI::IsRelativePos() const
+{
+    return m_tRelativePos.bRelative;
+}
+
 CDuiString CControlUI::GetToolTip() const
 {
     return m_sToolTip;
@@ -513,6 +517,7 @@ void CControlUI::SetTag(UINT_PTR pTag)
 
 bool CControlUI::IsVisible() const
 {
+
     return m_bVisible && m_bInternVisible;
 }
 
@@ -742,16 +747,25 @@ void CControlUI::SetAttribute(LPCTSTR pstrName, LPCTSTR pstrValue)
         rcPos.left = _tcstol(pstrValue, &pstr, 10);  ASSERT(pstr);    
         rcPos.top = _tcstol(pstr + 1, &pstr, 10);    ASSERT(pstr);    
         rcPos.right = _tcstol(pstr + 1, &pstr, 10);  ASSERT(pstr);    
-        rcPos.bottom = _tcstol(pstr + 1, &pstr, 10); ASSERT(pstr);    
+        rcPos.bottom = _tcstol(pstr + 1, &pstr, 10); ASSERT(pstr);
+#if 1 // 读取文件的时候
         SIZE szXY = {rcPos.left >= 0 ? rcPos.left : rcPos.right, rcPos.top >= 0 ? rcPos.top : rcPos.bottom};
         SetFixedXY(szXY);
         SetFixedWidth(rcPos.right - rcPos.left);
         SetFixedHeight(rcPos.bottom - rcPos.top);
+#else
+        SIZE szXY = { rcPos.left, rcPos.top };
+        SetFixedXY(szXY);
+#endif
     }
-    else if( _tcscmp(pstrName, _T("anchor")) == 0 ) {
-		LPTSTR pstr = NULL;
-		int nAnchorMode = _tcstol(pstrValue, &pstr, 10);
-		SetAnchorMode(nAnchorMode);
+    else if( _tcscmp(pstrName, _T("relativepos")) == 0 ) {
+        SIZE szMove,szZoom;
+        LPTSTR pstr = NULL;
+        szMove.cx = _tcstol(pstrValue, &pstr, 10);  ASSERT(pstr);    
+        szMove.cy = _tcstol(pstr + 1, &pstr, 10);    ASSERT(pstr);    
+        szZoom.cx = _tcstol(pstr + 1, &pstr, 10);  ASSERT(pstr);    
+        szZoom.cy = _tcstol(pstr + 1, &pstr, 10); ASSERT(pstr); 
+        SetRelativePos(szMove,szZoom);
     }
     else if( _tcscmp(pstrName, _T("padding")) == 0 ) {
         RECT rcPadding = { 0 };

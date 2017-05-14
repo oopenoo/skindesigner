@@ -21,9 +21,19 @@
 *.lai
 *.la
 *.a
+*.sbr
+*.idb
 *.lib
-
+*.map
+*.pdb
+*.ncb
+*.suo
+*.pch
+*.tlog
+*.bsc
 # Executables
+*.user
 *.exe
+*.dep
 *.out
 *.app
